@@ -10,9 +10,11 @@ describe('structural scan verification', () => {
     it('has correct 7x7 finder pattern at top-left', () => {
       const { matrix, moduleTypes, size } = generateQR({ data: 'TEST' });
       // Top-left finder: rows 0-6, cols 0-6
+      // Outer ring = FINDER(1), inner 3x3 = FINDER_INNER(8)
       for (let r = 0; r < 7; r++) {
         for (let c = 0; c < 7; c++) {
-          expect(moduleTypes[r][c]).toBe(MODULE_TYPE.FINDER);
+          const isInner = r >= 2 && r <= 4 && c >= 2 && c <= 4;
+          expect(moduleTypes[r][c]).toBe(isInner ? MODULE_TYPE.FINDER_INNER : MODULE_TYPE.FINDER);
         }
       }
       // Verify the actual pattern
@@ -34,14 +36,24 @@ describe('structural scan verification', () => {
 
     it('has correct finder patterns at all 3 corners', () => {
       const { moduleTypes, size } = generateQR({ data: 'TEST' });
+      // Helper to check finder type at position within a 7x7 finder
+      const isFinderInner = (r: number, c: number) => r >= 2 && r <= 4 && c >= 2 && c <= 4;
       // Top-right
       for (let r = 0; r < 7; r++)
-        for (let c = size - 7; c < size; c++)
-          expect(moduleTypes[r][c]).toBe(MODULE_TYPE.FINDER);
+        for (let c = size - 7; c < size; c++) {
+          const localR = r, localC = c - (size - 7);
+          expect(moduleTypes[r][c]).toBe(
+            isFinderInner(localR, localC) ? MODULE_TYPE.FINDER_INNER : MODULE_TYPE.FINDER
+          );
+        }
       // Bottom-left
       for (let r = size - 7; r < size; r++)
-        for (let c = 0; c < 7; c++)
-          expect(moduleTypes[r][c]).toBe(MODULE_TYPE.FINDER);
+        for (let c = 0; c < 7; c++) {
+          const localR = r - (size - 7), localC = c;
+          expect(moduleTypes[r][c]).toBe(
+            isFinderInner(localR, localC) ? MODULE_TYPE.FINDER_INNER : MODULE_TYPE.FINDER
+          );
+        }
     });
 
     it('has separators around finder patterns', () => {

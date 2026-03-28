@@ -1,5 +1,5 @@
 import type { ErrorCorrectionLevel } from '@qr-gen/core';
-import type { ColorConfig, ModuleShape, LogoConfig, GradientConfig } from '../types';
+import type { ColorConfig, ModuleShape, LogoConfig, OverlayImageConfig, GradientConfig } from '../types';
 import { contrastRatio } from './contrast';
 
 export interface ScannabilityBreakdown {
@@ -21,6 +21,7 @@ export function computeScannability(options: {
   bgColor?: string;
   shape?: ModuleShape;
   logo?: LogoConfig;
+  overlayImage?: OverlayImageConfig;
   size: number;
   margin?: number;
 }): ScannabilityResult {
@@ -30,6 +31,7 @@ export function computeScannability(options: {
     bgColor = '#ffffff',
     shape = 'square',
     logo,
+    overlayImage,
     size,
     margin = 4,
   } = options;
@@ -66,7 +68,7 @@ export function computeScannability(options: {
   }
 
   // Shape scoring
-  const shapeScores: Record<string, number> = { square: 15, rounded: 12, dots: 8 };
+  const shapeScores: Record<string, number> = { square: 15, rounded: 12, diamond: 10, dots: 8 };
   const shapeScore = shapeScores[shape] ?? 15;
 
   // Quiet zone scoring
@@ -77,6 +79,9 @@ export function computeScannability(options: {
   else if (margin === 1) qzScore = 2;
   else qzScore = 0;
 
+  // Overlay image penalty: reduces contrast reliability
+  const overlayPenalty = overlayImage ? 10 : 0;
+
   const breakdown: ScannabilityBreakdown = {
     errorCorrection: ecScore,
     contrast: contrastScore,
@@ -85,8 +90,10 @@ export function computeScannability(options: {
     quietZone: qzScore,
   };
 
+  const rawScore = ecScore + contrastScore + logoScore + shapeScore + qzScore - overlayPenalty;
+
   return {
-    score: ecScore + contrastScore + logoScore + shapeScore + qzScore,
+    score: Math.max(0, rawScore),
     breakdown,
   };
 }

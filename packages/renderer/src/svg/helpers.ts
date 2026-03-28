@@ -16,8 +16,22 @@ export function svgCircle(
   return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${fill}"/>`;
 }
 
-export function svgDocument(
-  width: number, height: number, content: string,
+export function svgPolygon(
+  points: string, fill: string,
 ): string {
+  return `<polygon points="${points}" fill="${fill}"/>`;
+}
+
+export function escapeXml(str: string): string {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+export function svgDocument(
+  width: number, height: number, content: string, title?: string,
+): string {
+  if (title) {
+    const escaped = escapeXml(title);
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escaped}"><title>${escaped}</title>${content}</svg>`;
+  }
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${content}</svg>`;
 }

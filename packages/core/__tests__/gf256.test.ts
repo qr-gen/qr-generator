@@ -99,5 +99,21 @@ describe('GF(256)', () => {
       // alpha^1 = 2, (alpha^1)^8 = alpha^8 = 29
       expect(gf256.power(2, 8)).toBe(29);
     });
+
+    it('power(0, n) = 0 for n > 0', () => {
+      expect(gf256.power(0, 1)).toBe(0);
+      expect(gf256.power(0, 5)).toBe(0);
+      expect(gf256.power(0, 255)).toBe(0);
+    });
+  });
+
+  describe('error cases', () => {
+    it('log(0) throws', () => {
+      expect(() => gf256.log(0)).toThrow('log(0) is undefined');
+    });
+
+    it('inverse(0) throws', () => {
+      expect(() => gf256.inverse(0)).toThrow('inverse(0) is undefined');
+    });
   });
 });

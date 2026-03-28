@@ -28,28 +28,64 @@ import { createQR } from '@qr-gen/vanilla';
 
 // SVG (default)
 const svg = createQR('hello', { size: 256 });
+// svg.data -> SVG string
 
 // PNG
 const png = createQR('hello', { size: 256, format: 'png' });
+// png.data -> Uint8Array
 
 // BMP
 const bmp = createQR('hello', { size: 256, format: 'bmp' });
+// bmp.data -> Uint8Array
 
 // Data URI (for <img> tags)
 const uri = createQR('hello', { size: 256, format: 'data-uri' });
+// uri.data -> "data:image/png;base64,..."
+```
+
+## CreateQRResult
+
+`createQR()` returns a result with helper methods:
+
+```ts
+const result = createQR('hello', { size: 256 });
+
+result.data;              // string | Uint8Array
+result.format;            // 'svg' | 'png' | 'bmp' | 'data-uri'
+result.version;           // QR version (1-40)
+result.errorCorrection;   // 'L' | 'M' | 'Q' | 'H'
+result.size;              // matrix size in modules
+result.validation;        // { valid, issues }
+
+result.toDataURL('png');  // data URL string (works everywhere)
+result.toBlob('png');     // Blob (browser only)
+result.download();        // triggers file download (browser only)
+result.download({ filename: 'my-qr.svg', format: 'svg' });
+```
+
+## SVG-Only Shortcut
+
+```ts
+import { createQRSVG } from '@qr-gen/vanilla';
+
+const { svg, version, errorCorrection, validation } = createQRSVG(
+  'https://example.com',
+  { size: 300, shape: 'rounded' },
+);
 ```
 
 ## Low-Level Renderers
 
 ```ts
 import { generateQR } from '@qr-gen/core';
-import { renderSVG, renderPNG, renderBMP, renderCanvas } from '@qr-gen/vanilla';
+import { renderSVG, renderPNG, renderBMP, renderCanvas, renderDataURI } from '@qr-gen/vanilla';
 
 const qr = generateQR({ data: 'https://example.com' });
 
-const svg = renderSVG(qr.matrix, { size: 256 });
+const svg = renderSVG(qr.matrix, { size: 256, moduleTypes: qr.moduleTypes });
 const png = renderPNG(qr.matrix, { size: 512 });
 const bmp = renderBMP(qr.matrix, { size: 512 });
+const dataUri = renderDataURI(qr.matrix, { size: 256 });
 
 // Canvas (browser only)
 renderCanvas(qr.matrix, { size: 256 }, document.getElementById('canvas'));
@@ -57,55 +93,161 @@ renderCanvas(qr.matrix, { size: 256 }, document.getElementById('canvas'));
 
 ## Styling
 
+### Colors and Shapes
+
 ```ts
 createQR('https://example.com', {
   size: 300,
   fgColor: '#1a1a2e',
   bgColor: '#e0e0e0',
-  shape: 'dots',              // 'square' | 'rounded' | 'dots'
+  shape: 'dots',              // 'square' | 'rounded' | 'dots' | 'diamond'
   margin: 4,
+  bgOpacity: 0.5,             // background opacity (0-1)
+  borderRadius: 10,           // outer border radius in px
+  moduleScale: 0.85,          // scale modules down (0-1)
 });
 ```
 
-## Gradients
+### Gradients
 
 ```ts
 createQR('https://example.com', {
   size: 300,
   fgColor: {
-    type: 'linear',
+    type: 'linear',            // 'linear' | 'radial'
     colors: ['#667eea', '#764ba2'],
     angle: 135,
   },
 });
 ```
 
-## Finder Pattern Customization
+### Finder Pattern Customization
 
 ```ts
 createQR('https://example.com', {
   size: 300,
   shape: 'dots',
-  finderShape: 'rounded',
+  finderShape: 'rounded',          // 'square' | 'rounded' | 'circle'
   finderColor: '#e94560',
+  // Granular control:
+  finderOuterShape: 'rounded',
+  finderInnerShape: 'circle',
+  finderOuterColor: '#e94560',
+  finderInnerColor: '#333333',
 });
 ```
 
-## Logo Embedding
+### Logo Embedding
 
 ```ts
 createQR('https://example.com', {
   size: 300,
   logo: {
-    src: '/logo.png',
+    src: '/logo.png',         // URL or data URI
     width: 50,
     height: 50,
+    padding: 5,
   },
 });
 // EC auto-upgrades to 'H' when a logo is present
 ```
 
-## Scannability Scoring
+### Overlay Image
+
+```ts
+createQR('https://example.com', {
+  size: 300,
+  overlayImage: {
+    src: '/background.png',
+    opacity: 0.3,
+    finderBackgroundColor: '#ffffff',
+  },
+});
+// EC auto-upgrades to 'H' when an overlay is present
+```
+
+### Frame
+
+```ts
+createQR('https://example.com', {
+  size: 300,
+  frame: {
+    style: 'rounded',              // 'square' | 'rounded'
+    color: '#333333',
+    thickness: 3,
+    label: 'Scan me',
+    labelPosition: 'bottom',       // 'top' | 'bottom'
+    labelColor: '#333333',
+    labelFontSize: 14,
+    padding: 8,
+  },
+});
+```
+
+### Custom Module Renderer
+
+```ts
+createQR('https://example.com', {
+  size: 300,
+  customModule: ({ x, y, size, row, col, moduleType }) => {
+    // Return an SVG string, or null to use the default shape
+    return `<circle cx="${x + size / 2}" cy="${y + size / 2}" r="${size / 3}" fill="red"/>`;
+  },
+});
+```
+
+## Presets
+
+```ts
+import { applyPreset, PRESET_NAMES } from '@qr-gen/vanilla';
+
+// Available: 'default' | 'minimal' | 'rounded' | 'dots' | 'sharp' | 'elegant'
+const opts = applyPreset('elegant');
+const result = createQR('hello', { size: 256, ...opts });
+
+// Override preset values
+const custom = applyPreset('dots', { fgColor: '#e94560' });
+```
+
+## File Download (Browser)
+
+```ts
+import { createQR, downloadQR } from '@qr-gen/vanilla';
+
+const result = createQR('https://example.com', { size: 512 });
+result.download({ filename: 'my-qr.png', format: 'png' });
+
+// Or use the standalone function
+downloadQR(result, { filename: 'my-qr.svg', format: 'svg' });
+```
+
+## Save to File (Node.js)
+
+```ts
+import { createQR } from '@qr-gen/vanilla';
+import { writeFileSync } from 'fs';
+
+writeFileSync('qr.svg', createQR('https://example.com', { size: 512 }).data);
+writeFileSync('qr.png', createQR('https://example.com', { size: 512, format: 'png' }).data);
+```
+
+## Validation
+
+### Render Options Validation
+
+```ts
+import { validateRenderOptions } from '@qr-gen/vanilla';
+
+const result = validateRenderOptions(
+  { size: 256, fgColor: '#777777', bgColor: '#888888' },
+  'M',
+);
+
+result.valid;    // false
+result.issues;   // [{ code: 'CONTRAST_TOO_LOW', severity: 'error', message: '...' }]
+```
+
+### Scannability Scoring
 
 ```ts
 import { computeScannability } from '@qr-gen/vanilla';
@@ -121,14 +263,25 @@ const { score, breakdown } = computeScannability({
 // score: 0-100
 ```
 
-## Save to File (Node.js)
+### Structural Integrity Verification
 
 ```ts
-import { createQR } from '@qr-gen/vanilla';
-import { writeFileSync } from 'fs';
+import { generateQR } from '@qr-gen/core';
+import { verifyQRIntegrity } from '@qr-gen/vanilla';
 
-writeFileSync('qr.svg', createQR('https://example.com', { size: 512 }).data);
-writeFileSync('qr.png', createQR('https://example.com', { size: 512, format: 'png' }).data);
+const qr = generateQR({ data: 'hello' });
+const result = verifyQRIntegrity(qr.matrix, 'hello', {
+  errorCorrection: 'M',
+});
+// result.success, result.matchesInput, result.issues
+```
+
+### Contrast Ratio
+
+```ts
+import { contrastRatio } from '@qr-gen/vanilla';
+
+contrastRatio('#000000', '#ffffff'); // 21
 ```
 
 ## Render Options
@@ -138,12 +291,38 @@ writeFileSync('qr.png', createQR('https://example.com', { size: 512, format: 'pn
 | `size` | `number` | required | Output size in pixels |
 | `fgColor` | `string \| GradientConfig` | `'#000000'` | Foreground color or gradient |
 | `bgColor` | `string` | `'#ffffff'` | Background color |
-| `shape` | `'square' \| 'rounded' \| 'dots'` | `'square'` | Module shape |
-| `finderShape` | `'square' \| 'rounded'` | same as `shape` | Finder pattern shape |
-| `finderColor` | `string \| GradientConfig` | same as `fgColor` | Finder pattern color |
-| `logo` | `LogoConfig` | — | Logo to embed in center |
+| `bgOpacity` | `number` | `1` | Background opacity (0-1) |
+| `borderRadius` | `number` | `0` | Outer border radius in pixels |
+| `shape` | `'square' \| 'rounded' \| 'dots' \| 'diamond'` | `'square'` | Module shape |
+| `moduleScale` | `number` | `1` | Scale factor for modules (0-1) |
+| `customModule` | `function` | - | Custom SVG module renderer |
+| `finderShape` | `'square' \| 'rounded' \| 'circle'` | matches `shape` | Finder pattern shape |
+| `finderColor` | `string \| GradientConfig` | matches `fgColor` | Finder pattern color |
+| `finderOuterShape` | `FinderShape` | matches `finderShape` | Outer finder ring shape |
+| `finderInnerShape` | `FinderShape` | matches `finderShape` | Inner finder dot shape |
+| `finderOuterColor` | `string \| GradientConfig` | matches `finderColor` | Outer finder ring color |
+| `finderInnerColor` | `string \| GradientConfig` | matches `finderColor` | Inner finder dot color |
+| `logo` | `LogoConfig` | - | Logo to embed in center |
+| `overlayImage` | `OverlayImageConfig` | - | Background overlay image |
 | `margin` | `number` | `4` | Quiet zone in modules |
+| `title` | `string` | - | SVG title element |
+| `frame` | `FrameConfig` | - | Decorative frame with optional label |
 | `skipValidation` | `boolean` | `false` | Skip contrast/size checks |
+
+## Validation Codes
+
+| Code | Severity | Description |
+|------|----------|-------------|
+| `CONTRAST_TOO_LOW` | error | Contrast ratio < 4.5 (WCAG) |
+| `LOGO_TOO_LARGE` | error | Logo area > 20% of QR |
+| `INVALID_COLOR` | error | Malformed hex color |
+| `INVALID_MODULE_SCALE` | error | Module scale out of range |
+| `INVALID_BG_OPACITY` | error | Background opacity out of range |
+| `EC_NOT_H_WITH_LOGO` | warning | Logo present but EC not H |
+| `SHAPE_SCAN_RISK` | warning | Dots shape with low EC |
+| `MODULE_TOO_SMALL` | warning | Module < 3px with non-square shape |
+| `OVERLAY_REQUIRES_HIGH_EC` | warning | Overlay present but EC not H |
+| `OVERLAY_HIGH_OPACITY` | warning | Overlay opacity too high for scanning |
 
 ## License
 

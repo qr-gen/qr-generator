@@ -37,6 +37,7 @@ export const MODULE_TYPE = {
   VERSION_INFO: 5,
   DARK_MODULE: 6,
   SEPARATOR: 7,
+  FINDER_INNER: 8,
 } as const;
 
 export type ModuleType = typeof MODULE_TYPE[keyof typeof MODULE_TYPE];

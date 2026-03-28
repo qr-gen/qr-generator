@@ -22,5 +22,8 @@ export function renderRasterModule(
     case 'dots':
       buffer.fillCircle(x + size / 2, y + size / 2, size * 0.45, r, g, b, a);
       break;
+    case 'diamond':
+      buffer.fillDiamond(x + size / 2, y + size / 2, size * 0.45, r, g, b, a);
+      break;
   }
 }

@@ -143,6 +143,24 @@ describe('scannability scoring', () => {
     expect(result.breakdown.logoImpact).toBe(20);
   });
 
+  it('diamond shape scores 10', () => {
+    const result = computeScannability({ errorCorrection: 'H', shape: 'diamond', size: 256 });
+    expect(result.breakdown.moduleShape).toBe(10);
+  });
+
+  it('overlay image reduces score', () => {
+    const withOverlay = computeScannability({
+      errorCorrection: 'H',
+      size: 256,
+      overlayImage: { src: 'test.png' },
+    });
+    const withoutOverlay = computeScannability({
+      errorCorrection: 'H',
+      size: 256,
+    });
+    expect(withOverlay.score).toBeLessThan(withoutOverlay.score);
+  });
+
   it('gradient fgColor uses minimum endpoint contrast', () => {
     // A gradient from dark to medium — the worst endpoint contrast should be used
     const result = computeScannability({

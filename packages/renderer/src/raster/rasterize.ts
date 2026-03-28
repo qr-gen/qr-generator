@@ -5,6 +5,7 @@ import { renderRasterModule } from './shapes.js';
 import { getGradientColor } from './gradient.js';
 import { computeLogoBounds, isModuleInLogoBounds } from '../svg/logo.js';
 import { validateRenderOptions } from '../validation/validate.js';
+import { computeFrameLayout } from '../svg/frame.js';
 
 /**
  * Rasterize a QR matrix into a PixelBuffer.
@@ -41,18 +42,47 @@ export function rasterizeMatrix(
   }
 
   const matrixSize = matrix.length;
+  const frame = options.frame;
+  const fgColorStr = typeof fgColor === 'string' ? fgColor : '#000000';
+
+  // Compute frame layout
+  const frameLayout = frame ? computeFrameLayout(size, frame, fgColorStr) : null;
+  const effectiveQRSize = frameLayout ? frameLayout.qrSize : size;
+  const qrOffsetX = frameLayout ? frameLayout.qrX : 0;
+  const qrOffsetY = frameLayout ? frameLayout.qrY : 0;
+
   const totalModules = matrixSize + margin * 2;
-  const moduleSize = size / totalModules;
+  const moduleSize = effectiveQRSize / totalModules;
 
   const buffer = new PixelBuffer(size, size);
+  const isTransparentBg = bgColor === 'transparent';
 
   // Fill background
-  const [bgR, bgG, bgB] = parseHexColor(bgColor);
-  buffer.fillRect(0, 0, size, size, bgR, bgG, bgB, 255);
+  let bgR = 255, bgG = 255, bgB = 255;
+  const bgAlpha = Math.round((options.bgOpacity ?? 1) * 255);
+  if (!isTransparentBg) {
+    [bgR, bgG, bgB] = parseHexColor(bgColor);
+    // Fill entire canvas, then frame border will draw on top
+    buffer.fillRect(0, 0, size, size, bgR, bgG, bgB, bgAlpha);
+  }
+
+  // Draw frame border in raster (label omitted in raster mode)
+  if (frame) {
+    const thickness = frame.thickness ?? Math.round(size / 30);
+    const [frameR, frameG, frameB] = frame.color ? parseHexColor(frame.color) : parseHexColor(fgColorStr);
+    // Top border
+    buffer.fillRect(0, 0, size, thickness, frameR, frameG, frameB, 255);
+    // Bottom border
+    buffer.fillRect(0, size - thickness, size, thickness, frameR, frameG, frameB, 255);
+    // Left border
+    buffer.fillRect(0, 0, thickness, size, frameR, frameG, frameB, 255);
+    // Right border
+    buffer.fillRect(size - thickness, 0, thickness, size, frameR, frameG, frameB, 255);
+  }
 
   // Compute logo bounds if logo is present
   const logoBounds = logo
-    ? computeLogoBounds(logo, size, logo.padding ?? moduleSize * 2)
+    ? computeLogoBounds(logo, effectiveQRSize, logo.padding ?? moduleSize * 2)
     : null;
 
   // Determine if fgColor is a gradient
@@ -66,52 +96,176 @@ export function rasterizeMatrix(
     [fgR, fgG, fgB] = parseHexColor(fgColor as string);
   }
 
-  // Resolve finder color
-  const isFinderGradient = finderColor && typeof finderColor !== 'string';
-  let finderR = 0, finderG = 0, finderB = 0;
-  if (finderColor && typeof finderColor === 'string' && moduleTypes) {
-    [finderR, finderG, finderB] = parseHexColor(finderColor);
+  // Resolve finder outer/inner colors with fallback chain
+  const resolvedFinderOuterColor = options.finderOuterColor ?? finderColor;
+  const resolvedFinderInnerColor = options.finderInnerColor ?? finderColor;
+
+  const isFinderOuterGradient = resolvedFinderOuterColor && typeof resolvedFinderOuterColor !== 'string';
+  const isFinderInnerGradient = resolvedFinderInnerColor && typeof resolvedFinderInnerColor !== 'string';
+
+  let finderOuterR = fgR, finderOuterG = fgG, finderOuterB = fgB;
+  if (resolvedFinderOuterColor && typeof resolvedFinderOuterColor === 'string' && moduleTypes) {
+    [finderOuterR, finderOuterG, finderOuterB] = parseHexColor(resolvedFinderOuterColor);
   }
+
+  let finderInnerR = fgR, finderInnerG = fgG, finderInnerB = fgB;
+  if (resolvedFinderInnerColor && typeof resolvedFinderInnerColor === 'string' && moduleTypes) {
+    [finderInnerR, finderInnerG, finderInnerB] = parseHexColor(resolvedFinderInnerColor);
+  }
+
+  // Resolve finder outer/inner shapes
+  const finderOuterShapeResolved = options.finderOuterShape ?? finderShape;
+  const finderInnerShapeResolved = options.finderInnerShape ?? finderShape;
+
+  // Circle finder patterns: render as concentric circles
+  const useCircleFinders = finderShape === 'circle' && moduleTypes;
+  if (useCircleFinders) {
+    const finderCenters = [
+      { row: 3, col: 3 },
+      { row: 3, col: matrixSize - 4 },
+      { row: matrixSize - 4, col: 3 },
+    ];
+
+    for (const { row, col } of finderCenters) {
+      const cx = qrOffsetX + (col + margin) * moduleSize + moduleSize / 2;
+      const cy = qrOffsetY + (row + margin) * moduleSize + moduleSize / 2;
+      const gapR = isTransparentBg ? 255 : bgR;
+      const gapG = isTransparentBg ? 255 : bgG;
+      const gapB = isTransparentBg ? 255 : bgB;
+      buffer.fillCircle(cx, cy, 3.5 * moduleSize, finderOuterR, finderOuterG, finderOuterB, 255);  // outer
+      buffer.fillCircle(cx, cy, 2.5 * moduleSize, gapR, gapG, gapB, 255);  // gap
+      buffer.fillCircle(cx, cy, 1.5 * moduleSize, finderInnerR, finderInnerG, finderInnerB, 255);  // inner
+    }
+  }
+
+  // Module scale: shrink modules within their grid cell (finders exempt)
+  const scale = options.moduleScale ?? 1;
 
   // Render each dark module
   for (let row = 0; row < matrixSize; row++) {
     for (let col = 0; col < matrixSize; col++) {
       if (matrix[row][col] !== 1) continue;
 
-      const x = (col + margin) * moduleSize;
-      const y = (row + margin) * moduleSize;
+      const x = qrOffsetX + (col + margin) * moduleSize;
+      const y = qrOffsetY + (row + margin) * moduleSize;
 
       // Skip modules in logo clear zone
       if (logoBounds && isModuleInLogoBounds(x, y, moduleSize, logoBounds)) {
         continue;
       }
 
-      // Determine if this is a finder module
+      // Determine if this is a finder module (FINDER=1, SEPARATOR=7, FINDER_INNER=8)
       const isFinder = moduleTypes && (
-        moduleTypes[row][col] === 1 || moduleTypes[row][col] === 7
+        moduleTypes[row][col] === 1 || moduleTypes[row][col] === 7 || moduleTypes[row][col] === 8
       );
-      const moduleShape = (isFinder && finderShape) ? finderShape : shape;
 
-      if (isFinder && finderColor && moduleTypes) {
-        if (isFinderGradient) {
-          renderGradientModule(buffer, x, y, moduleSize, moduleShape, size, size, finderColor as GradientConfig);
+      // Skip individual finder modules when using circle finders
+      if (useCircleFinders && isFinder) {
+        continue;
+      }
+
+      // Apply scale (finders are NOT scaled)
+      const adjustedSize = isFinder ? moduleSize : moduleSize * scale;
+      const offsetX = isFinder ? x : x + (moduleSize - adjustedSize) / 2;
+      const offsetY = isFinder ? y : y + (moduleSize - adjustedSize) / 2;
+
+      // Determine shape and color based on module type (inner vs outer finder)
+      const isFinderInnerModule = moduleTypes && moduleTypes[row][col] === 8;
+      let moduleShape = shape;
+
+      if (isFinder) {
+        if (isFinderInnerModule) {
+          const innerShape = finderInnerShapeResolved;
+          moduleShape = (innerShape && innerShape !== 'circle') ? innerShape : shape;
         } else {
-          renderRasterModule(buffer, x, y, moduleSize, moduleShape, finderR, finderG, finderB, 255);
+          const outerShape = finderOuterShapeResolved;
+          moduleShape = (outerShape && outerShape !== 'circle') ? outerShape : shape;
+        }
+      }
+
+      if (isFinder && moduleTypes) {
+        if (isFinderInnerModule) {
+          // Inner finder module
+          if (resolvedFinderInnerColor) {
+            if (isFinderInnerGradient) {
+              renderGradientModule(buffer, offsetX, offsetY, adjustedSize, moduleShape, size, size, resolvedFinderInnerColor as GradientConfig);
+            } else {
+              renderRasterModule(buffer, offsetX, offsetY, adjustedSize, moduleShape, finderInnerR, finderInnerG, finderInnerB, 255);
+            }
+          } else if (isGradient) {
+            renderGradientModule(buffer, offsetX, offsetY, adjustedSize, moduleShape, size, size, fgColor as GradientConfig);
+          } else {
+            renderRasterModule(buffer, offsetX, offsetY, adjustedSize, moduleShape, fgR, fgG, fgB, 255);
+          }
+        } else {
+          // Outer finder module
+          if (resolvedFinderOuterColor) {
+            if (isFinderOuterGradient) {
+              renderGradientModule(buffer, offsetX, offsetY, adjustedSize, moduleShape, size, size, resolvedFinderOuterColor as GradientConfig);
+            } else {
+              renderRasterModule(buffer, offsetX, offsetY, adjustedSize, moduleShape, finderOuterR, finderOuterG, finderOuterB, 255);
+            }
+          } else if (isGradient) {
+            renderGradientModule(buffer, offsetX, offsetY, adjustedSize, moduleShape, size, size, fgColor as GradientConfig);
+          } else {
+            renderRasterModule(buffer, offsetX, offsetY, adjustedSize, moduleShape, fgR, fgG, fgB, 255);
+          }
         }
       } else if (isGradient) {
-        // For gradient colors, iterate over each pixel in the module area
-        // and compute the gradient color based on that pixel's position
-        // relative to the full QR code dimensions.
         const gradientConfig = fgColor as GradientConfig;
-        renderGradientModule(buffer, x, y, moduleSize, moduleShape, size, size, gradientConfig);
+        renderGradientModule(buffer, offsetX, offsetY, adjustedSize, moduleShape, size, size, gradientConfig);
       } else {
-        // Solid color: use renderRasterModule
-        renderRasterModule(buffer, x, y, moduleSize, moduleShape, fgR, fgG, fgB, 255);
+        renderRasterModule(buffer, offsetX, offsetY, adjustedSize, moduleShape, fgR, fgG, fgB, 255);
       }
     }
   }
 
+  // Apply rounded border mask
+  const borderRadius = options.borderRadius ?? 0;
+  if (borderRadius > 0) {
+    applyRoundedMask(buffer, borderRadius);
+  }
+
   return buffer;
+}
+
+/**
+ * Set pixels outside the rounded rect to fully transparent.
+ */
+function applyRoundedMask(buffer: PixelBuffer, radius: number): void {
+  const w = buffer.width;
+  const h = buffer.height;
+  const r = Math.min(radius, Math.floor(Math.min(w, h) / 2));
+
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      // Only check corner regions
+      let inCorner = false;
+      let cx = 0, cy = 0;
+
+      if (x < r && y < r) {
+        // Top-left corner
+        cx = r; cy = r; inCorner = true;
+      } else if (x >= w - r && y < r) {
+        // Top-right corner
+        cx = w - r; cy = r; inCorner = true;
+      } else if (x < r && y >= h - r) {
+        // Bottom-left corner
+        cx = r; cy = h - r; inCorner = true;
+      } else if (x >= w - r && y >= h - r) {
+        // Bottom-right corner
+        cx = w - r; cy = h - r; inCorner = true;
+      }
+
+      if (inCorner) {
+        const dx = x - cx;
+        const dy = y - cy;
+        if (dx * dx + dy * dy > r * r) {
+          buffer.setPixel(x, y, 0, 0, 0, 0);
+        }
+      }
+    }
+  }
 }
 
 /**
@@ -198,6 +352,13 @@ function isPixelInShape(
         if (dx * dx + dy * dy <= r2) return true;
       }
       return false;
+    }
+
+    case 'diamond': {
+      const cx = mx + size / 2;
+      const cy = my + size / 2;
+      const half = size * 0.45;
+      return Math.abs(px - cx) + Math.abs(py - cy) <= half;
     }
 
     default:

@@ -1,6 +1,6 @@
 # @qr-gen/react
 
-React component and hook for generating QR codes. Zero-dependency QR engine with custom rendering — shapes, gradients, logos, and finder pattern customization.
+React component and hook for generating QR codes. Zero-dependency QR engine with custom rendering — shapes, gradients, logos, overlays, frames, and finder pattern customization.
 
 **0.5 KB gzipped** (+ 13.2 KB for core + vanilla, installed automatically).
 
@@ -30,7 +30,10 @@ function App() {
   size={300}
   fgColor="#1a1a2e"
   bgColor="#ffffff"
+  bgOpacity={0.8}
+  borderRadius={10}
   shape="rounded"
+  moduleScale={0.9}
   margin={4}
 />
 ```
@@ -58,6 +61,11 @@ function App() {
   shape="dots"
   finderShape="rounded"
   finderColor="#e94560"
+  // Granular control:
+  finderOuterShape="rounded"
+  finderInnerShape="circle"
+  finderOuterColor="#e94560"
+  finderInnerColor="#333333"
 />
 ```
 
@@ -71,11 +79,104 @@ function App() {
     src: "/logo.png",
     width: 50,
     height: 50,
+    padding: 5,
   }}
 />
 ```
 
 Error correction is automatically upgraded to `'H'` when a logo is present.
+
+## Overlay Image
+
+```tsx
+<QRCode
+  value="https://example.com"
+  size={300}
+  overlayImage={{
+    src: "/background.png",
+    opacity: 0.3,
+    finderBackgroundColor: "#ffffff",
+  }}
+/>
+```
+
+Error correction is automatically upgraded to `'H'` when an overlay is present.
+
+## Frame
+
+```tsx
+<QRCode
+  value="https://example.com"
+  size={300}
+  frame={{
+    style: 'rounded',
+    color: '#333333',
+    thickness: 3,
+    label: 'Scan me',
+    labelPosition: 'bottom',
+    labelColor: '#333333',
+    labelFontSize: 14,
+    padding: 8,
+  }}
+/>
+```
+
+## Presets
+
+```tsx
+<QRCode
+  value="https://example.com"
+  size={300}
+  preset="elegant"
+  fgColor="#1a1a2e"   // explicit props override preset values
+/>
+```
+
+Available presets: `'default'` | `'minimal'` | `'rounded'` | `'dots'` | `'sharp'` | `'elegant'`
+
+## Custom Module Renderer
+
+```tsx
+<QRCode
+  value="https://example.com"
+  size={300}
+  customModule={({ x, y, size, row, col, moduleType }) => {
+    return `<circle cx="${x + size / 2}" cy="${y + size / 2}" r="${size / 3}" fill="red"/>`;
+  }}
+/>
+```
+
+## Imperative Handle (ref)
+
+Access download/export methods via ref:
+
+```tsx
+import { useRef } from 'react';
+import { QRCode } from '@qr-gen/react';
+import type { QRCodeHandle } from '@qr-gen/react';
+
+function App() {
+  const qrRef = useRef<QRCodeHandle>(null);
+
+  return (
+    <>
+      <QRCode ref={qrRef} value="https://example.com" size={256} />
+      <button onClick={() => qrRef.current?.download('my-qr.png')}>
+        Download
+      </button>
+    </>
+  );
+}
+```
+
+### QRCodeHandle methods
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `download(filename?)` | `void` | Trigger a file download (browser only) |
+| `toBlob()` | `Blob` | Get QR as a Blob (browser only) |
+| `toDataURL()` | `string` | Get QR as a data URL string |
+| `element` | `HTMLDivElement \| null` | Access the underlying DOM element |
 
 ## useQRCode Hook
 
@@ -85,7 +186,7 @@ For custom rendering (Canvas, WebGL, etc.), use the hook to get the raw QR matri
 import { useQRCode } from '@qr-gen/react';
 
 function CustomQR() {
-  const { matrix, moduleTypes, version, size } = useQRCode({
+  const { matrix, moduleTypes, version, size, errorCorrection } = useQRCode({
     value: 'https://example.com',
     errorCorrection: 'H',
   });
@@ -93,6 +194,15 @@ function CustomQR() {
   return <canvas ref={/* render matrix yourself */} />;
 }
 ```
+
+### UseQRCodeOptions
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `value` | `string` | required | Data to encode |
+| `errorCorrection` | `'L' \| 'M' \| 'Q' \| 'H'` | `'M'` | Error correction level |
+| `version` | `number` | auto | QR version (1-40) |
+| `hasLogo` | `boolean` | `false` | Auto-upgrade EC to `'H'` |
 
 ## Props
 
@@ -104,16 +214,26 @@ function CustomQR() {
 | `version` | `number` | auto | QR version (1-40) |
 | `fgColor` | `string \| GradientConfig` | `'#000000'` | Foreground color or gradient |
 | `bgColor` | `string` | `'#ffffff'` | Background color |
-| `shape` | `'square' \| 'rounded' \| 'dots'` | `'square'` | Module shape |
-| `finderShape` | `'square' \| 'rounded'` | same as `shape` | Finder pattern shape |
-| `finderColor` | `string \| GradientConfig` | same as `fgColor` | Finder pattern color |
-| `logo` | `LogoConfig` | — | Logo to embed in center |
+| `bgOpacity` | `number` | `1` | Background opacity (0-1) |
+| `borderRadius` | `number` | `0` | Outer border radius in pixels |
+| `shape` | `'square' \| 'rounded' \| 'dots' \| 'diamond'` | `'square'` | Module shape |
+| `moduleScale` | `number` | `1` | Scale factor for modules (0-1) |
+| `customModule` | `function` | - | Custom SVG module renderer |
+| `finderShape` | `'square' \| 'rounded' \| 'circle'` | matches `shape` | Finder pattern shape |
+| `finderColor` | `string \| GradientConfig` | matches `fgColor` | Finder pattern color |
+| `finderOuterShape` | `FinderShape` | matches `finderShape` | Outer finder ring shape |
+| `finderInnerShape` | `FinderShape` | matches `finderShape` | Inner finder dot shape |
+| `finderOuterColor` | `string \| GradientConfig` | matches `finderColor` | Outer finder ring color |
+| `finderInnerColor` | `string \| GradientConfig` | matches `finderColor` | Inner finder dot color |
+| `logo` | `LogoConfig` | - | Logo to embed in center |
+| `overlayImage` | `OverlayImageConfig` | - | Background overlay image |
 | `margin` | `number` | `4` | Quiet zone in modules |
+| `frame` | `FrameConfig` | - | Decorative frame with optional label |
+| `preset` | `PresetName` | - | Apply a style preset |
 | `skipValidation` | `boolean` | `false` | Skip contrast/size checks |
-| `className` | `string` | — | CSS class on wrapper div |
-| `style` | `CSSProperties` | — | Inline styles on wrapper div |
-
-The component forwards refs to the wrapper `<div>`.
+| `alt` | `string` | `'QR Code'` | Accessible label (aria-label) |
+| `className` | `string` | - | CSS class on wrapper div |
+| `style` | `CSSProperties` | - | Inline styles on wrapper div |
 
 ## License
 

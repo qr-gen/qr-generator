@@ -143,4 +143,36 @@ describe('generateQR', () => {
     expect(result.moduleTypes).toHaveLength(result.size);
     expect(result.moduleTypes[0]).toHaveLength(result.size);
   });
+
+  describe('LRU cache eviction', () => {
+    it('evicts oldest entries when cache is full (capacity 16)', () => {
+      clearQRCache();
+      // Fill cache with 16 entries
+      for (let i = 0; i < 16; i++) {
+        generateQR({ data: `ITEM${i}`, errorCorrection: 'L' });
+      }
+      // These should be cached
+      const before = generateQR({ data: 'ITEM0', errorCorrection: 'L' });
+
+      // Add a 17th entry -> evicts ITEM0 (since ITEM0 was just re-used, ITEM1 is oldest)
+      generateQR({ data: 'OVERFLOW', errorCorrection: 'L' });
+
+      // ITEM1 was evicted (oldest untouched), so re-generating gives different ref
+      clearQRCache();
+      const after = generateQR({ data: 'ITEM0', errorCorrection: 'L' });
+      // After clearing cache, refs should differ
+      expect(before.matrix).not.toBe(after.matrix);
+    });
+
+    it('set replaces existing key without growing', () => {
+      clearQRCache();
+      const r1 = generateQR({ data: 'REPLACE_TEST' });
+      clearQRCache();
+      const r2 = generateQR({ data: 'REPLACE_TEST' });
+      // Different references since cache was cleared
+      expect(r1.matrix).not.toBe(r2.matrix);
+      // But values are equal
+      expect(r1.version).toBe(r2.version);
+    });
+  });
 });

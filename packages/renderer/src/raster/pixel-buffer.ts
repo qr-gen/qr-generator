@@ -163,6 +163,35 @@ export class PixelBuffer {
     }
   }
 
+  fillDiamond(
+    cx: number,
+    cy: number,
+    halfSize: number,
+    r: number,
+    g: number,
+    b: number,
+    a: number,
+  ): void {
+    const x0 = Math.max(0, Math.floor(cx - halfSize));
+    const y0 = Math.max(0, Math.floor(cy - halfSize));
+    const x1 = Math.min(this.width, Math.ceil(cx + halfSize + 1));
+    const y1 = Math.min(this.height, Math.ceil(cy + halfSize + 1));
+
+    for (let py = y0; py < y1; py++) {
+      const dy = Math.abs(py - cy);
+      for (let px = x0; px < x1; px++) {
+        const dx = Math.abs(px - cx);
+        if (dx + dy <= halfSize) {
+          const offset = (py * this.width + px) * 4;
+          this.data[offset] = r;
+          this.data[offset + 1] = g;
+          this.data[offset + 2] = b;
+          this.data[offset + 3] = a;
+        }
+      }
+    }
+  }
+
   blendPixel(
     x: number,
     y: number,

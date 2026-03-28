@@ -24,7 +24,9 @@ function placeFinder(
     for (let c = 0; c < 7; c++) {
       matrix[rowOffset + r][colOffset + c] = FINDER[r][c];
       reserved[rowOffset + r][colOffset + c] = true;
-      moduleTypes[rowOffset + r][colOffset + c] = 1; // MODULE_TYPE.FINDER
+      // Inner 3x3 block (rows 2-4, cols 2-4) gets FINDER_INNER type
+      const isInner = r >= 2 && r <= 4 && c >= 2 && c <= 4;
+      moduleTypes[rowOffset + r][colOffset + c] = isInner ? 8 : 1; // FINDER_INNER : FINDER
     }
   }
 }

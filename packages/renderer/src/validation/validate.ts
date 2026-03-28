@@ -32,7 +32,7 @@ export function validateRenderOptions(
       message: `Invalid foreground color: "${fgColor}". Use #RGB or #RRGGBB format.`,
     });
   }
-  if (!isValidHex(bgColor)) {
+  if (bgColor !== 'transparent' && !isValidHex(bgColor)) {
     issues.push({
       code: 'INVALID_COLOR',
       severity: 'error',
@@ -40,8 +40,8 @@ export function validateRenderOptions(
     });
   }
 
-  // Contrast check (only for solid fg colors)
-  if (typeof fgColor === 'string' && isValidHex(fgColor) && isValidHex(bgColor)) {
+  // Contrast check (only for solid fg colors, skip when bg is transparent)
+  if (bgColor !== 'transparent' && typeof fgColor === 'string' && isValidHex(fgColor) && isValidHex(bgColor)) {
     const ratio = contrastRatio(fgColor, bgColor);
     if (ratio < 4.5) {
       issues.push({
@@ -74,11 +74,48 @@ export function validateRenderOptions(
   }
 
   // Shape scan risk
-  if (options.shape === 'dots' && ecLevel && ecLevel !== 'H') {
+  if ((options.shape === 'dots' || options.shape === 'diamond') && ecLevel && ecLevel !== 'H') {
     issues.push({
       code: 'SHAPE_SCAN_RISK',
       severity: 'warning',
       message: 'Dots shape may reduce scannability. Consider using error correction level H.',
+    });
+  }
+
+  // Overlay image validations
+  if (options.overlayImage) {
+    if (ecLevel && ecLevel !== 'H') {
+      issues.push({
+        code: 'OVERLAY_REQUIRES_HIGH_EC',
+        severity: 'warning',
+        message: 'Overlay image mode works best with error correction level H for reliable scanning.',
+      });
+    }
+    const overlayOpacity = options.overlayImage.opacity ?? 0.3;
+    if (overlayOpacity > 0.5) {
+      issues.push({
+        code: 'OVERLAY_HIGH_OPACITY',
+        severity: 'warning',
+        message: `Overlay image opacity ${overlayOpacity} is high. Values above 0.5 may reduce scannability.`,
+      });
+    }
+  }
+
+  // Background opacity range validation
+  if (options.bgOpacity !== undefined && (options.bgOpacity < 0 || options.bgOpacity > 1)) {
+    issues.push({
+      code: 'INVALID_BG_OPACITY',
+      severity: 'error',
+      message: `Background opacity ${options.bgOpacity} is outside the valid range [0, 1].`,
+    });
+  }
+
+  // Module scale range validation
+  if (options.moduleScale !== undefined && (options.moduleScale < 0.5 || options.moduleScale > 1.0)) {
+    issues.push({
+      code: 'INVALID_MODULE_SCALE',
+      severity: 'error',
+      message: `Module scale ${options.moduleScale} is outside the valid range [0.5, 1.0].`,
     });
   }
 

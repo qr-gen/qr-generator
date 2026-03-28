@@ -83,4 +83,43 @@ describe('renderRasterModule', () => {
     expect(buf.getPixel(40, 20)).toEqual([0, 0, 0, 0]);
     expect(buf.getPixel(30, 30)).toEqual([0, 0, 0, 0]);
   });
+
+  it('diamond shape fills center, leaves corners empty', () => {
+    const size = 20;
+    const buf = new PixelBuffer(30, 30);
+    renderRasterModule(buf, 5, 5, size, 'diamond', 0, 0, 0, 255);
+
+    // Center should be filled
+    const cx = 5 + Math.floor(size / 2);
+    const cy = 5 + Math.floor(size / 2);
+    expect(buf.getPixel(cx, cy)).toEqual([0, 0, 0, 255]);
+
+    // All four corner pixels of the bounding box should be empty
+    expect(buf.getPixel(5, 5)).toEqual([0, 0, 0, 0]);
+    expect(buf.getPixel(5 + size - 1, 5)).toEqual([0, 0, 0, 0]);
+    expect(buf.getPixel(5, 5 + size - 1)).toEqual([0, 0, 0, 0]);
+    expect(buf.getPixel(5 + size - 1, 5 + size - 1)).toEqual([0, 0, 0, 0]);
+  });
+
+  it('diamond shape fills edge midpoints (vertices)', () => {
+    const size = 20;
+    const buf = new PixelBuffer(30, 30);
+    renderRasterModule(buf, 5, 5, size, 'diamond', 0, 0, 0, 255);
+
+    const cx = 5 + size / 2; // 15
+    const cy = 5 + size / 2; // 15
+    // The diamond vertices touch near edge midpoints (within 0.45 * half of center)
+    // Top vertex: (cx, cy - half) where half = size * 0.45 = 9
+    // So top vertex at ~(15, 6) — should be filled
+    expect(buf.getPixel(Math.floor(cx), Math.ceil(cy - size * 0.45))).toEqual([0, 0, 0, 255]);
+    // Right vertex
+    expect(buf.getPixel(Math.floor(cx + size * 0.45), Math.floor(cy))).toEqual([0, 0, 0, 255]);
+  });
+
+  it('diamond color is applied correctly', () => {
+    const buf = new PixelBuffer(20, 20);
+    renderRasterModule(buf, 0, 0, 10, 'diamond', 255, 0, 0, 255);
+    // Center pixel should be red
+    expect(buf.getPixel(5, 5)).toEqual([255, 0, 0, 255]);
+  });
 });

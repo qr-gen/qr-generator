@@ -355,4 +355,89 @@ describe('rasterizeMatrix', () => {
       expect(diffCount).toBeGreaterThan(0);
     });
   });
+
+  describe('circle finder patterns', () => {
+    it('renders circle finders: center of finder is foreground color', () => {
+      const { generateQR } = require('@qr-gen/core');
+      const qr = generateQR({ data: 'test', errorCorrection: 'M' });
+      const size = 512;
+      const margin = 4;
+      const matrixSize = qr.matrix.length;
+      const totalModules = matrixSize + margin * 2;
+      const moduleSize = size / totalModules;
+
+      const buffer = rasterizeMatrix(qr.matrix, {
+        size,
+        finderShape: 'circle',
+        moduleTypes: qr.moduleTypes,
+        skipValidation: true,
+      });
+
+      // Top-left finder center: module (3, 3)
+      const cx = Math.floor((3 + margin) * moduleSize + moduleSize / 2);
+      const cy = Math.floor((3 + margin) * moduleSize + moduleSize / 2);
+      const [r, g, b, a] = buffer.getPixel(cx, cy);
+      // Should be foreground (black)
+      expect(r).toBe(0);
+      expect(g).toBe(0);
+      expect(b).toBe(0);
+      expect(a).toBe(255);
+    });
+
+    it('renders circle finders: middle ring is background color', () => {
+      const { generateQR } = require('@qr-gen/core');
+      const qr = generateQR({ data: 'test', errorCorrection: 'M' });
+      const size = 512;
+      const margin = 4;
+      const matrixSize = qr.matrix.length;
+      const totalModules = matrixSize + margin * 2;
+      const moduleSize = size / totalModules;
+
+      const buffer = rasterizeMatrix(qr.matrix, {
+        size,
+        finderShape: 'circle',
+        moduleTypes: qr.moduleTypes,
+        skipValidation: true,
+      });
+
+      // Top-left finder center at module (3, 3)
+      const cx = (3 + margin) * moduleSize + moduleSize / 2;
+      const cy = (3 + margin) * moduleSize + moduleSize / 2;
+      // Middle ring at radius ~2*moduleSize (between inner 1.5ms and outer 2.5ms)
+      const ringX = Math.floor(cx + 2 * moduleSize);
+      const ringY = Math.floor(cy);
+      const [r, g, b] = buffer.getPixel(ringX, ringY);
+      // Should be background (white)
+      expect(r).toBe(255);
+      expect(g).toBe(255);
+      expect(b).toBe(255);
+    });
+
+    it('circle finders with finderColor uses custom color', () => {
+      const { generateQR } = require('@qr-gen/core');
+      const qr = generateQR({ data: 'test', errorCorrection: 'M' });
+      const size = 512;
+      const margin = 4;
+      const matrixSize = qr.matrix.length;
+      const totalModules = matrixSize + margin * 2;
+      const moduleSize = size / totalModules;
+
+      const buffer = rasterizeMatrix(qr.matrix, {
+        size,
+        finderShape: 'circle',
+        finderColor: '#ff0000',
+        moduleTypes: qr.moduleTypes,
+        skipValidation: true,
+      });
+
+      // Center of top-left finder should be red
+      const cx = Math.floor((3 + margin) * moduleSize + moduleSize / 2);
+      const cy = Math.floor((3 + margin) * moduleSize + moduleSize / 2);
+      const [r, g, b, a] = buffer.getPixel(cx, cy);
+      expect(r).toBe(255);
+      expect(g).toBe(0);
+      expect(b).toBe(0);
+      expect(a).toBe(255);
+    });
+  });
 });

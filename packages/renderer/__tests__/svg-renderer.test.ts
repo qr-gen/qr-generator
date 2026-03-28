@@ -219,6 +219,231 @@ describe('SVG Renderer', () => {
     });
   });
 
+  describe('circle finder patterns', () => {
+    // Use a real QR generation to get proper moduleTypes
+    it('produces 9 circle elements (3 concentric circles x 3 finders)', () => {
+      const { generateQR } = require('@qr-gen/core');
+      const qr = generateQR({ data: 'test', errorCorrection: 'M' });
+      const svg = renderSVG(qr.matrix, {
+        size: 256,
+        finderShape: 'circle',
+        moduleTypes: qr.moduleTypes,
+        skipValidation: true,
+      });
+      const circles = (svg.match(/<circle/g) || []);
+      expect(circles.length).toBe(9); // 3 finders x 3 concentric circles
+    });
+
+    it('circle radii are proportional to moduleSize (3.5, 2.5, 1.5)', () => {
+      const { generateQR } = require('@qr-gen/core');
+      const qr = generateQR({ data: 'test', errorCorrection: 'M' });
+      const size = 256;
+      const matrixSize = qr.matrix.length;
+      const margin = 4;
+      const moduleSize = size / (matrixSize + margin * 2);
+
+      const svg = renderSVG(qr.matrix, {
+        size,
+        finderShape: 'circle',
+        moduleTypes: qr.moduleTypes,
+        skipValidation: true,
+      });
+
+      const outerR = (3.5 * moduleSize).toString();
+      const midR = (2.5 * moduleSize).toString();
+      const innerR = (1.5 * moduleSize).toString();
+
+      expect(svg).toContain(`r="${outerR}"`);
+      expect(svg).toContain(`r="${midR}"`);
+      expect(svg).toContain(`r="${innerR}"`);
+    });
+
+    it('does not render individual finder module rects when finderShape=circle', () => {
+      const { generateQR } = require('@qr-gen/core');
+      const qr = generateQR({ data: 'test', errorCorrection: 'M' });
+      const svgCircle = renderSVG(qr.matrix, {
+        size: 256,
+        finderShape: 'circle',
+        moduleTypes: qr.moduleTypes,
+        skipValidation: true,
+      });
+      const svgSquare = renderSVG(qr.matrix, {
+        size: 256,
+        finderShape: 'square',
+        moduleTypes: qr.moduleTypes,
+        skipValidation: true,
+      });
+      // Circle finders should have fewer rect elements (no per-module finder rects)
+      const circleRects = (svgCircle.match(/<rect/g) || []).length;
+      const squareRects = (svgSquare.match(/<rect/g) || []).length;
+      expect(circleRects).toBeLessThan(squareRects);
+    });
+
+    it('uses finderColor for circle finders when specified', () => {
+      const { generateQR } = require('@qr-gen/core');
+      const qr = generateQR({ data: 'test', errorCorrection: 'M' });
+      const svg = renderSVG(qr.matrix, {
+        size: 256,
+        finderShape: 'circle',
+        finderColor: '#ff0000',
+        moduleTypes: qr.moduleTypes,
+        skipValidation: true,
+      });
+      // The circle elements should use the finder color
+      expect(svg).toContain('fill="#ff0000"');
+    });
+
+    it('composes with diamond module shape', () => {
+      const { generateQR } = require('@qr-gen/core');
+      const qr = generateQR({ data: 'test', errorCorrection: 'M' });
+      const svg = renderSVG(qr.matrix, {
+        size: 256,
+        shape: 'diamond',
+        finderShape: 'circle',
+        moduleTypes: qr.moduleTypes,
+        skipValidation: true,
+      });
+      expect(svg).toContain('<circle');   // circle finders
+      expect(svg).toContain('<polygon');  // diamond data modules
+    });
+  });
+
+  describe('overlay image', () => {
+    it('renders <image> element when overlayImage is provided', () => {
+      const { generateQR } = require('@qr-gen/core');
+      const qr = generateQR({ data: 'test', errorCorrection: 'H' });
+      const svg = renderSVG(qr.matrix, {
+        size: 256,
+        overlayImage: { src: 'data:image/png;base64,abc123' },
+        moduleTypes: qr.moduleTypes,
+        skipValidation: true,
+      });
+      expect(svg).toContain('<image');
+      expect(svg).toContain('href="data:image/png;base64,abc123"');
+    });
+
+    it('applies default opacity of 0.3', () => {
+      const { generateQR } = require('@qr-gen/core');
+      const qr = generateQR({ data: 'test', errorCorrection: 'H' });
+      const svg = renderSVG(qr.matrix, {
+        size: 256,
+        overlayImage: { src: 'test.png' },
+        moduleTypes: qr.moduleTypes,
+        skipValidation: true,
+      });
+      expect(svg).toContain('opacity="0.3"');
+    });
+
+    it('applies custom opacity', () => {
+      const { generateQR } = require('@qr-gen/core');
+      const qr = generateQR({ data: 'test', errorCorrection: 'H' });
+      const svg = renderSVG(qr.matrix, {
+        size: 256,
+        overlayImage: { src: 'test.png', opacity: 0.5 },
+        moduleTypes: qr.moduleTypes,
+        skipValidation: true,
+      });
+      expect(svg).toContain('opacity="0.5"');
+    });
+
+    it('renders image at full QR size with preserveAspectRatio', () => {
+      const { generateQR } = require('@qr-gen/core');
+      const qr = generateQR({ data: 'test', errorCorrection: 'H' });
+      const svg = renderSVG(qr.matrix, {
+        size: 256,
+        overlayImage: { src: 'test.png' },
+        moduleTypes: qr.moduleTypes,
+        skipValidation: true,
+      });
+      expect(svg).toContain('width="256"');
+      expect(svg).toContain('height="256"');
+      expect(svg).toContain('preserveAspectRatio="xMidYMid slice"');
+    });
+
+    it('renders finder background rects for scannability', () => {
+      const { generateQR } = require('@qr-gen/core');
+      const qr = generateQR({ data: 'test', errorCorrection: 'H' });
+      const svg = renderSVG(qr.matrix, {
+        size: 256,
+        overlayImage: { src: 'test.png' },
+        moduleTypes: qr.moduleTypes,
+        skipValidation: true,
+      });
+      // Should have finder backgrounds — look for rects with bgColor after the image
+      const imageIdx = svg.indexOf('<image');
+      const afterImage = svg.slice(imageIdx);
+      // There should be background rects for 3 finder positions
+      const bgRects = (afterImage.match(/<rect[^/]*fill="#ffffff"/g) || []);
+      expect(bgRects.length).toBeGreaterThanOrEqual(3);
+    });
+
+    it('uses finderBackgroundColor when specified', () => {
+      const { generateQR } = require('@qr-gen/core');
+      const qr = generateQR({ data: 'test', errorCorrection: 'H' });
+      const svg = renderSVG(qr.matrix, {
+        size: 256,
+        overlayImage: { src: 'test.png', finderBackgroundColor: '#eeeeee' },
+        moduleTypes: qr.moduleTypes,
+        skipValidation: true,
+      });
+      expect(svg).toContain('fill="#eeeeee"');
+    });
+
+    it('renders circular finder backgrounds when finderShape is circle', () => {
+      const { generateQR } = require('@qr-gen/core');
+      const qr = generateQR({ data: 'test', errorCorrection: 'H' });
+      const svg = renderSVG(qr.matrix, {
+        size: 256,
+        overlayImage: { src: 'test.png' },
+        finderShape: 'circle',
+        moduleTypes: qr.moduleTypes,
+        skipValidation: true,
+      });
+      // Should contain circle elements for finder backgrounds + circle finders
+      const circles = (svg.match(/<circle/g) || []);
+      // 3 bg circles + 9 concentric circles = 12 total
+      expect(circles.length).toBe(12);
+    });
+
+    it('coexists with logo', () => {
+      const { generateQR } = require('@qr-gen/core');
+      const qr = generateQR({ data: 'test', errorCorrection: 'H' });
+      const svg = renderSVG(qr.matrix, {
+        size: 256,
+        overlayImage: { src: 'overlay.png' },
+        logo: { src: 'logo.png', width: 30, height: 30 },
+        moduleTypes: qr.moduleTypes,
+        skipValidation: true,
+      });
+      // Both overlay image and logo image should be present
+      const images = (svg.match(/<image/g) || []);
+      expect(images.length).toBe(2);
+      expect(svg).toContain('href="overlay.png"');
+      expect(svg).toContain('href="logo.png"');
+    });
+
+    it('image appears after bg rect but before modules', () => {
+      const { generateQR } = require('@qr-gen/core');
+      const qr = generateQR({ data: 'test', errorCorrection: 'H' });
+      const svg = renderSVG(qr.matrix, {
+        size: 256,
+        overlayImage: { src: 'test.png' },
+        moduleTypes: qr.moduleTypes,
+        skipValidation: true,
+      });
+      const bgIdx = svg.indexOf('fill="#ffffff"');
+      const imgIdx = svg.indexOf('<image');
+      // Find first data module element (rect or polygon after the image)
+      const firstModuleAfterImg = svg.indexOf('<rect', imgIdx + 50) !== -1
+        ? svg.indexOf('<rect', imgIdx + 50)
+        : svg.indexOf('<polygon', imgIdx);
+      expect(bgIdx).toBeLessThan(imgIdx);
+      if (firstModuleAfterImg !== -1) {
+        expect(imgIdx).toBeLessThan(firstModuleAfterImg);
+      }
+    });
+  });
+
   describe('validation integration', () => {
     it('throws on low contrast by default', () => {
       expect(() =>

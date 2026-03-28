@@ -5,7 +5,10 @@ import { renderSVG } from './svg/renderer';
 import { renderPNG } from './png/renderer';
 import { renderBMP } from './bmp/renderer';
 import { renderDataURI } from './data-uri/renderer';
+import type { DataURIFormat } from './data-uri/renderer';
 import { validateRenderOptions } from './validation/validate';
+import { downloadQR } from './download';
+import type { DownloadOptions, DownloadFormat } from './download';
 
 export type OutputFormat = 'svg' | 'png' | 'bmp' | 'data-uri';
 
@@ -21,6 +24,12 @@ export interface CreateQRResult {
   errorCorrection: ErrorCorrectionLevel;
   size: number;
   validation: ValidationResult;
+  /** Get the QR code as a data URL string. Works in all environments. */
+  toDataURL(format?: DownloadFormat): string;
+  /** Get the QR code as a Blob. Browser-only. */
+  toBlob(format?: DownloadFormat): Blob;
+  /** Trigger a file download in the browser. Browser-only. */
+  download(options?: DownloadOptions): void;
 }
 
 /**
@@ -38,7 +47,8 @@ export function createQR(
   const { format = 'svg', ...restRenderOptions } = renderOptions;
 
   const hasLogo = !!restRenderOptions.logo;
-  const ecLevel: ErrorCorrectionLevel = hasLogo
+  const hasOverlay = !!restRenderOptions.overlayImage;
+  const ecLevel: ErrorCorrectionLevel = (hasLogo || hasOverlay)
     ? 'H'
     : qrOptions?.errorCorrection ?? 'M';
 
@@ -79,12 +89,39 @@ export function createQR(
       break;
   }
 
-  return {
+  const MIME_TYPES: Record<DownloadFormat, string> = {
+    svg: 'image/svg+xml',
+    png: 'image/png',
+    bmp: 'image/bmp',
+  };
+
+  const result: CreateQRResult = {
     data: output,
     format,
     version: qr.version,
     errorCorrection: qr.errorCorrection,
     size: qr.size,
     validation,
+
+    toDataURL(fmt: DataURIFormat = 'png'): string {
+      return renderDataURI(qr.matrix, opts, fmt);
+    },
+
+    toBlob(fmt: DownloadFormat = 'png'): Blob {
+      if (typeof Blob === 'undefined') {
+        throw new Error('toBlob() requires a browser environment with Blob support.');
+      }
+      if (fmt === 'svg') {
+        return new Blob([renderSVG(qr.matrix, opts)], { type: MIME_TYPES[fmt] });
+      }
+      const bytes = fmt === 'bmp' ? renderBMP(qr.matrix, opts) : renderPNG(qr.matrix, opts);
+      return new Blob([bytes as BlobPart], { type: MIME_TYPES[fmt] });
+    },
+
+    download(downloadOpts?: DownloadOptions): void {
+      downloadQR(result, downloadOpts);
+    },
   };
+
+  return result;
 }

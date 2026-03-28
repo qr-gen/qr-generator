@@ -181,6 +181,48 @@ describe('validateRenderOptions', () => {
     });
   });
 
+  describe('overlay image validation', () => {
+    it('warns when overlay with EC < H', () => {
+      const result = validateRenderOptions(
+        { ...defaults, overlayImage: { src: 'test.png' } },
+        'M',
+      );
+      expect(result.issues.some(i => i.code === 'OVERLAY_REQUIRES_HIGH_EC')).toBe(true);
+    });
+
+    it('no warning when overlay with EC H', () => {
+      const result = validateRenderOptions(
+        { ...defaults, overlayImage: { src: 'test.png' } },
+        'H',
+      );
+      expect(result.issues.some(i => i.code === 'OVERLAY_REQUIRES_HIGH_EC')).toBe(false);
+    });
+
+    it('warns when overlay opacity > 0.5', () => {
+      const result = validateRenderOptions(
+        { ...defaults, overlayImage: { src: 'test.png', opacity: 0.7 } },
+        'H',
+      );
+      expect(result.issues.some(i => i.code === 'OVERLAY_HIGH_OPACITY')).toBe(true);
+    });
+
+    it('no warning when overlay opacity <= 0.5', () => {
+      const result = validateRenderOptions(
+        { ...defaults, overlayImage: { src: 'test.png', opacity: 0.3 } },
+        'H',
+      );
+      expect(result.issues.some(i => i.code === 'OVERLAY_HIGH_OPACITY')).toBe(false);
+    });
+
+    it('no warning when overlay default opacity (0.3)', () => {
+      const result = validateRenderOptions(
+        { ...defaults, overlayImage: { src: 'test.png' } },
+        'H',
+      );
+      expect(result.issues.some(i => i.code === 'OVERLAY_HIGH_OPACITY')).toBe(false);
+    });
+  });
+
   describe('multiple issues', () => {
     it('returns multiple issues at once', () => {
       const result = validateRenderOptions(

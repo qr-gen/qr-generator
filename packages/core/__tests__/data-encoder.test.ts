@@ -75,4 +75,17 @@ describe('encodeData', () => {
     const result = encodeData('TEST', undefined, undefined);
     expect(result.errorCorrection).toBe('M');
   });
+
+  it('throws InvalidVersionError for version < 1', () => {
+    expect(() => encodeData('TEST', 0, 'M')).toThrow('Invalid QR version');
+  });
+
+  it('throws InvalidVersionError for version > 40', () => {
+    expect(() => encodeData('TEST', 41, 'M')).toThrow('Invalid QR version');
+  });
+
+  it('throws DataTooLongError when data exceeds capacity for auto version', () => {
+    // Byte mode, EC H: very limited capacity, a huge string should fail
+    expect(() => encodeData('a'.repeat(3000), undefined, 'H')).toThrow();
+  });
 });

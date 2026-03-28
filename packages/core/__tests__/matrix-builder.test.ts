@@ -62,26 +62,27 @@ describe('Matrix Builder', () => {
       }
     });
 
-    it('finder pattern positions are MODULE_TYPE.FINDER', () => {
+    it('finder pattern positions are MODULE_TYPE.FINDER or FINDER_INNER', () => {
       const data = new Uint8Array(26);
       const { moduleTypes } = buildMatrix(data, 1, 'M');
       const size = 21;
+      const isInner = (r: number, c: number) => r >= 2 && r <= 4 && c >= 2 && c <= 4;
       // Top-left 7x7
       for (let r = 0; r < 7; r++) {
         for (let c = 0; c < 7; c++) {
-          expect(moduleTypes[r][c]).toBe(MODULE_TYPE.FINDER);
+          expect(moduleTypes[r][c]).toBe(isInner(r, c) ? MODULE_TYPE.FINDER_INNER : MODULE_TYPE.FINDER);
         }
       }
       // Top-right 7x7
       for (let r = 0; r < 7; r++) {
         for (let c = size - 7; c < size; c++) {
-          expect(moduleTypes[r][c]).toBe(MODULE_TYPE.FINDER);
+          expect(moduleTypes[r][c]).toBe(isInner(r, c - (size - 7)) ? MODULE_TYPE.FINDER_INNER : MODULE_TYPE.FINDER);
         }
       }
       // Bottom-left 7x7
       for (let r = size - 7; r < size; r++) {
         for (let c = 0; c < 7; c++) {
-          expect(moduleTypes[r][c]).toBe(MODULE_TYPE.FINDER);
+          expect(moduleTypes[r][c]).toBe(isInner(r - (size - 7), c) ? MODULE_TYPE.FINDER_INNER : MODULE_TYPE.FINDER);
         }
       }
     });

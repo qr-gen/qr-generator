@@ -95,4 +95,47 @@ describe('createQR', () => {
     });
     expect(result.data as string).toContain('#ff0000');
   });
+
+  it('diamond shape produces valid SVG with polygon elements', () => {
+    const result = createQR('hello', { size: 256, shape: 'diamond' });
+    expect(typeof result.data).toBe('string');
+    expect(result.data as string).toContain('<polygon');
+    expect(result.data as string).toContain('<svg');
+  });
+
+  it('diamond shape produces valid PNG', () => {
+    const result = createQR('hello', { size: 100, shape: 'diamond', format: 'png' });
+    expect(result.data).toBeInstanceOf(Uint8Array);
+    const bytes = Array.from((result.data as Uint8Array).slice(0, 8));
+    expect(bytes).toEqual(PNG_SIGNATURE);
+  });
+
+  it('auto-upgrades EC to H when overlayImage is present', () => {
+    const result = createQR('hello', {
+      size: 256,
+      overlayImage: { src: 'test.png' },
+    });
+    expect(result.errorCorrection).toBe('H');
+  });
+
+  it('overlay image produces SVG with <image> element', () => {
+    const result = createQR('hello', {
+      size: 256,
+      overlayImage: { src: 'data:image/png;base64,test' },
+    });
+    expect(result.data as string).toContain('<image');
+  });
+
+  it('overlay + circle finders + diamond modules all compose', () => {
+    const result = createQR('hello', {
+      size: 256,
+      shape: 'diamond',
+      finderShape: 'circle',
+      overlayImage: { src: 'test.png' },
+    });
+    const svg = result.data as string;
+    expect(svg).toContain('<polygon');  // diamond modules
+    expect(svg).toContain('<circle');   // circle finders
+    expect(svg).toContain('<image');    // overlay image
+  });
 });
