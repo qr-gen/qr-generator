@@ -2,7 +2,7 @@
 
 React component and hook for generating QR codes. Zero-dependency QR engine with custom rendering — shapes, gradients, logos, overlays, frames, and finder pattern customization.
 
-**0.5 KB gzipped** (+ 13.2 KB for core + vanilla, installed automatically).
+**0.95 KB gzipped** (+ 21.9 KB for core + dom, installed automatically).
 
 ## Install
 
@@ -101,6 +101,24 @@ Error correction is automatically upgraded to `'H'` when a logo is present.
 ```
 
 Error correction is automatically upgraded to `'H'` when an overlay is present.
+
+## Halftone Effect
+
+Shape QR modules to approximate a target image:
+
+```tsx
+<QRCode
+  value="https://example.com"
+  size={300}
+  halftone={{
+    image: { data: rgbaPixels, width: 200, height: 200 },
+    strength: 0.7,    // 0-1
+    threshold: 128,   // 0-255
+  }}
+/>
+```
+
+Accepts a PNG data URI string or raw RGBA pixel data. Error correction is automatically upgraded to `'H'` when halftone is present.
 
 ## Frame
 
@@ -227,9 +245,14 @@ function CustomQR() {
 | `finderInnerColor` | `string \| GradientConfig` | matches `finderColor` | Inner finder dot color |
 | `logo` | `LogoConfig` | - | Logo to embed in center |
 | `overlayImage` | `OverlayImageConfig` | - | Background overlay image |
+| `halftone` | `HalftoneConfig` | - | Halftone image effect |
 | `margin` | `number` | `4` | Quiet zone in modules |
+| `marginColor` | `string` | matches `bgColor` | Quiet zone color |
+| `alignmentColor` | `string \| GradientConfig` | matches `fgColor` | Alignment pattern color |
+| `timingColor` | `string \| GradientConfig` | matches `fgColor` | Timing pattern color |
 | `frame` | `FrameConfig` | - | Decorative frame with optional label |
 | `preset` | `PresetName` | - | Apply a style preset |
+| `optimizeSvg` | `boolean` | `false` | Merge adjacent modules for smaller SVG |
 | `skipValidation` | `boolean` | `false` | Skip contrast/size checks |
 | `alt` | `string` | `'QR Code'` | Accessible label (aria-label) |
 | `className` | `string` | - | CSS class on wrapper div |

@@ -101,6 +101,40 @@ export function validateRenderOptions(
     }
   }
 
+  // Halftone validations
+  if (options.halftone) {
+    if (ecLevel && ecLevel !== 'H') {
+      issues.push({
+        code: 'HALFTONE_REQUIRES_HIGH_EC',
+        severity: 'warning',
+        message: 'Halftone mode works best with error correction level H for reliable scanning.',
+      });
+    }
+    const img = options.halftone.image;
+    if (!img || (typeof img === 'string' && !img.startsWith('data:image/png'))) {
+      issues.push({
+        code: 'HALFTONE_INVALID_IMAGE',
+        severity: 'error',
+        message: 'Halftone image must be a PNG data URI (data:image/png;base64,...) or raw pixel data ({ data, width, height }).',
+      });
+    }
+    if (typeof img === 'object' && (!img.data || !img.width || !img.height)) {
+      issues.push({
+        code: 'HALFTONE_INVALID_IMAGE',
+        severity: 'error',
+        message: 'Halftone pixel data must include data (Uint8Array), width, and height.',
+      });
+    }
+    const strength = options.halftone.strength;
+    if (strength !== undefined && (strength < 0 || strength > 1)) {
+      issues.push({
+        code: 'HALFTONE_INVALID_STRENGTH',
+        severity: 'error',
+        message: `Halftone strength ${strength} is outside the valid range [0, 1].`,
+      });
+    }
+  }
+
   // Background opacity range validation
   if (options.bgOpacity !== undefined && (options.bgOpacity < 0 || options.bgOpacity > 1)) {
     issues.push({

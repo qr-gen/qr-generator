@@ -9,6 +9,8 @@ import type { DataURIFormat } from './data-uri/renderer';
 import { validateRenderOptions } from './validation/validate';
 import { downloadQR } from './download';
 import type { DownloadOptions, DownloadFormat } from './download';
+import { applyHalftone } from './halftone/index';
+import { computeLogoBounds } from './svg/logo';
 
 export type OutputFormat = 'svg' | 'png' | 'bmp' | 'data-uri';
 
@@ -48,7 +50,8 @@ export function createQR(
 
   const hasLogo = !!restRenderOptions.logo;
   const hasOverlay = !!restRenderOptions.overlayImage;
-  const ecLevel: ErrorCorrectionLevel = (hasLogo || hasOverlay)
+  const hasHalftone = !!restRenderOptions.halftone;
+  const ecLevel: ErrorCorrectionLevel = (hasLogo || hasOverlay || hasHalftone)
     ? 'H'
     : qrOptions?.errorCorrection ?? 'M';
 
@@ -69,6 +72,31 @@ export function createQR(
     version: qrOptions?.version,
   });
 
+  // Apply halftone effect if configured
+  let matrix = qr.matrix;
+  if (hasHalftone && restRenderOptions.halftone) {
+    let logoRegion: { x: number; y: number; width: number; height: number } | undefined;
+    if (hasLogo && restRenderOptions.logo) {
+      const moduleSize = restRenderOptions.size / (qr.size + (restRenderOptions.margin ?? 4) * 2);
+      const marginPx = (restRenderOptions.margin ?? 4) * moduleSize;
+      const bounds = computeLogoBounds(restRenderOptions.logo, restRenderOptions.size, moduleSize);
+      // Convert pixel bounds to module coordinates
+      logoRegion = {
+        x: Math.floor((bounds.clearX - marginPx) / moduleSize),
+        y: Math.floor((bounds.clearY - marginPx) / moduleSize),
+        width: Math.ceil(bounds.clearWidth / moduleSize),
+        height: Math.ceil(bounds.clearHeight / moduleSize),
+      };
+    }
+    const halftoneResult = applyHalftone(
+      qr.matrix,
+      qr.moduleTypes,
+      restRenderOptions.halftone,
+      logoRegion,
+    );
+    matrix = halftoneResult.matrix;
+  }
+
   // Build render options with skipValidation since we already ran it
   const opts: RenderOptions = { ...restRenderOptions, skipValidation: true, moduleTypes: qr.moduleTypes };
 
@@ -76,16 +104,16 @@ export function createQR(
   let output: string | Uint8Array;
   switch (format) {
     case 'svg':
-      output = renderSVG(qr.matrix, opts);
+      output = renderSVG(matrix, opts);
       break;
     case 'png':
-      output = renderPNG(qr.matrix, opts);
+      output = renderPNG(matrix, opts);
       break;
     case 'bmp':
-      output = renderBMP(qr.matrix, opts);
+      output = renderBMP(matrix, opts);
       break;
     case 'data-uri':
-      output = renderDataURI(qr.matrix, opts);
+      output = renderDataURI(matrix, opts);
       break;
   }
 
@@ -104,7 +132,7 @@ export function createQR(
     validation,
 
     toDataURL(fmt: DataURIFormat = 'png'): string {
-      return renderDataURI(qr.matrix, opts, fmt);
+      return renderDataURI(matrix, opts, fmt);
     },
 
     toBlob(fmt: DownloadFormat = 'png'): Blob {
@@ -112,9 +140,9 @@ export function createQR(
         throw new Error('toBlob() requires a browser environment with Blob support.');
       }
       if (fmt === 'svg') {
-        return new Blob([renderSVG(qr.matrix, opts)], { type: MIME_TYPES[fmt] });
+        return new Blob([renderSVG(matrix, opts)], { type: MIME_TYPES[fmt] });
       }
-      const bytes = fmt === 'bmp' ? renderBMP(qr.matrix, opts) : renderPNG(qr.matrix, opts);
+      const bytes = fmt === 'bmp' ? renderBMP(matrix, opts) : renderPNG(matrix, opts);
       return new Blob([bytes as BlobPart], { type: MIME_TYPES[fmt] });
     },
 

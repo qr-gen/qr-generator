@@ -9,6 +9,9 @@ export type {
 export { MODULE_TYPE } from './types';
 export { QRError, DataTooLongError, InvalidVersionError, InvalidInputError } from './errors';
 
+export { getFlexibleModules } from './halftone';
+export type { ExcludeRegion } from './halftone';
+
 export {
   formatWifi,
   formatVCard,

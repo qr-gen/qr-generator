@@ -2,7 +2,7 @@
 
 Zero-dependency QR code renderer with multi-format output — SVG, PNG, BMP, Canvas, and Data URI. Built from scratch with custom PNG/BMP encoders (no native dependencies).
 
-**5.5 KB gzipped.**
+**13.2 KB gzipped.**
 
 ## Install
 
@@ -196,6 +196,96 @@ createQR('https://example.com', {
 });
 ```
 
+### Halftone Effect
+
+Shape QR module patterns to visually approximate a target image while preserving scannability:
+
+```ts
+// Using a PNG data URI
+createQR('https://example.com', {
+  size: 300,
+  halftone: {
+    image: 'data:image/png;base64,...',  // PNG data URI
+    strength: 0.7,                        // 0-1, default 0.7
+    threshold: 128,                       // 0-255, default 128
+  },
+});
+
+// Using raw RGBA pixel data (any format, decoded externally)
+createQR('https://example.com', {
+  size: 300,
+  halftone: {
+    image: { data: rgbaUint8Array, width: 200, height: 200 },
+    strength: 0.7,
+  },
+});
+// EC auto-upgrades to 'H' when halftone is present
+```
+
+The low-level `applyHalftone` function is also available for advanced use:
+
+```ts
+import { applyHalftone } from '@qr-kit/dom';
+import { generateQR } from '@qr-kit/core';
+
+const qr = generateQR({ data: 'hello', errorCorrection: 'H' });
+const result = applyHalftone(qr.matrix, qr.moduleTypes, {
+  image: pngDataURI,
+  strength: 0.7,
+});
+// result.matrix, result.flippedCount, result.flexibleCount, result.budgetUsed
+```
+
+### Module Colors
+
+Customize colors for specific module types:
+
+```ts
+createQR('https://example.com', {
+  size: 300,
+  fgColor: '#000000',
+  marginColor: '#f0f0f0',       // quiet zone color (defaults to bgColor)
+  alignmentColor: '#e94560',     // alignment pattern modules
+  timingColor: '#333333',        // timing pattern modules
+});
+```
+
+### DPI and Physical Size
+
+Control output resolution for print:
+
+```ts
+// Set DPI directly
+createQR('https://example.com', {
+  size: 300,
+  format: 'png',
+  dpi: 300,                      // default: 72 (screen)
+});
+
+// Specify physical dimensions (pixel size calculated from dpi)
+createQR('https://example.com', {
+  size: 300,
+  format: 'png',
+  dpi: 300,
+  physicalSize: {
+    width: 50,
+    height: 50,
+    unit: 'mm',                  // 'mm' | 'in'
+  },
+});
+```
+
+### SVG Optimization
+
+Merge adjacent square modules into combined `<path>` elements for smaller SVG output:
+
+```ts
+createQR('https://example.com', {
+  size: 300,
+  optimizeSvg: true,             // default: false
+});
+```
+
 ## Presets
 
 ```ts
@@ -304,9 +394,16 @@ contrastRatio('#000000', '#ffffff'); // 21
 | `finderInnerColor` | `string \| GradientConfig` | matches `finderColor` | Inner finder dot color |
 | `logo` | `LogoConfig` | - | Logo to embed in center |
 | `overlayImage` | `OverlayImageConfig` | - | Background overlay image |
+| `halftone` | `HalftoneConfig` | - | Halftone image effect |
 | `margin` | `number` | `4` | Quiet zone in modules |
+| `marginColor` | `string` | matches `bgColor` | Quiet zone color |
+| `alignmentColor` | `string \| GradientConfig` | matches `fgColor` | Alignment pattern color |
+| `timingColor` | `string \| GradientConfig` | matches `fgColor` | Timing pattern color |
 | `title` | `string` | - | SVG title element |
 | `frame` | `FrameConfig` | - | Decorative frame with optional label |
+| `dpi` | `number` | `72` | DPI for raster output |
+| `physicalSize` | `PhysicalSize` | - | Physical dimensions (mm or in) |
+| `optimizeSvg` | `boolean` | `false` | Merge adjacent modules for smaller SVG |
 | `skipValidation` | `boolean` | `false` | Skip contrast/size checks |
 
 ## Validation Codes
@@ -323,6 +420,9 @@ contrastRatio('#000000', '#ffffff'); // 21
 | `MODULE_TOO_SMALL` | warning | Module < 3px with non-square shape |
 | `OVERLAY_REQUIRES_HIGH_EC` | warning | Overlay present but EC not H |
 | `OVERLAY_HIGH_OPACITY` | warning | Overlay opacity too high for scanning |
+| `HALFTONE_REQUIRES_HIGH_EC` | warning | Halftone present but EC not H |
+| `HALFTONE_INVALID_IMAGE` | error | Invalid halftone image format |
+| `HALFTONE_INVALID_STRENGTH` | error | Halftone strength outside 0-1 range |
 
 ## Related Packages
 

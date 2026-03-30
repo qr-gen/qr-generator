@@ -20,6 +20,8 @@ export { computeLogoBounds, isModuleInLogoBounds } from './svg/logo';
 export type { LogoBounds } from './svg/logo';
 export { applyPreset, PRESET_NAMES } from './presets';
 export type { PresetName } from './presets';
+export { applyHalftone } from './halftone';
+export type { HalftoneResult } from './halftone';
 export type {
   RenderOptions,
   FrameConfig,
@@ -29,10 +31,13 @@ export type {
   ColorConfig,
   LogoConfig,
   OverlayImageConfig,
+  HalftoneConfig,
+  HalftoneImageData,
   CustomModuleArgs,
   ValidationCode,
   ValidationSeverity,
   ValidationIssue,
   ValidationResult,
   OutputFormat,
+  PhysicalSize,
 } from './types';

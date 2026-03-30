@@ -1,6 +1,6 @@
 {
   "name": "@qr-kit/dom",
-  "version": "1.0.1",
+  "version": "1.2.1",
   "description": "Zero-dependency QR code renderer with multi-format output — SVG, PNG, BMP, Canvas, and Data URI with custom encoders",
   "type": "module",
   "main": "dist/index.cjs",

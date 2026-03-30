@@ -1,8 +1,8 @@
 import { useMemo, useRef, useImperativeHandle, forwardRef } from 'react';
 import { generateQR } from '@qr-kit/core';
 import type { ErrorCorrectionLevel } from '@qr-kit/core';
-import { renderSVG, createQR, applyPreset } from '@qr-kit/dom';
-import type { RenderOptions, ModuleShape, ColorConfig, LogoConfig, FinderShape, OverlayImageConfig, CustomModuleArgs, PresetName, FrameConfig } from '@qr-kit/dom';
+import { renderSVG, createQR, applyPreset, applyHalftone } from '@qr-kit/dom';
+import type { RenderOptions, ModuleShape, ColorConfig, LogoConfig, FinderShape, OverlayImageConfig, HalftoneConfig, CustomModuleArgs, PresetName, FrameConfig, PhysicalSize } from '@qr-kit/dom';
 
 export interface QRCodeProps {
   value: string;
@@ -19,6 +19,7 @@ export interface QRCodeProps {
   margin?: number;
   logo?: LogoConfig;
   overlayImage?: OverlayImageConfig;
+  halftone?: HalftoneConfig;
   finderShape?: FinderShape;
   finderColor?: ColorConfig;
   finderOuterColor?: ColorConfig;
@@ -28,6 +29,14 @@ export interface QRCodeProps {
   frame?: FrameConfig;
   preset?: PresetName;
   skipValidation?: boolean;
+  /** Color of the quiet zone / margin area. Defaults to bgColor. */
+  marginColor?: string;
+  /** Color for alignment pattern modules. Defaults to fgColor. */
+  alignmentColor?: ColorConfig;
+  /** Color for timing pattern modules. Defaults to fgColor. */
+  timingColor?: ColorConfig;
+  /** Merge adjacent square modules into combined path elements for smaller SVG. Default: false. */
+  optimizeSvg?: boolean;
   alt?: string;
   className?: string;
   style?: React.CSSProperties;
@@ -61,6 +70,7 @@ export const QRCode = forwardRef<QRCodeHandle, QRCodeProps>(
       margin,
       logo,
       overlayImage,
+      halftone,
       finderShape,
       finderColor,
       finderOuterColor,
@@ -70,6 +80,10 @@ export const QRCode = forwardRef<QRCodeHandle, QRCodeProps>(
       frame,
       preset,
       skipValidation,
+      marginColor,
+      alignmentColor,
+      timingColor,
+      optimizeSvg,
       alt,
       className,
       style,
@@ -78,9 +92,16 @@ export const QRCode = forwardRef<QRCodeHandle, QRCodeProps>(
     const divRef = useRef<HTMLDivElement>(null);
 
     const svgString = useMemo(() => {
-      // Auto-upgrade EC to H when logo or overlay is present
-      const ec: ErrorCorrectionLevel = (logo || overlayImage) ? 'H' : (errorCorrection ?? 'M');
+      // Auto-upgrade EC to H when logo, overlay, or halftone is present
+      const ec: ErrorCorrectionLevel = (logo || overlayImage || halftone) ? 'H' : (errorCorrection ?? 'M');
       const qr = generateQR({ data: value, errorCorrection: ec, version });
+
+      // Apply halftone effect if configured
+      let matrix = qr.matrix;
+      if (halftone) {
+        const halftoneResult = applyHalftone(matrix, qr.moduleTypes, halftone);
+        matrix = halftoneResult.matrix;
+      }
 
       // Merge preset options first, then explicit props win.
       // Filter out undefined values so they don't overwrite preset settings.
@@ -90,7 +111,7 @@ export const QRCode = forwardRef<QRCodeHandle, QRCodeProps>(
         size, fgColor, bgColor, bgOpacity, borderRadius, shape, moduleScale,
         customModule, margin, logo, overlayImage, finderShape, finderColor,
         finderOuterColor, finderInnerColor, finderOuterShape, finderInnerShape,
-        frame, skipValidation,
+        frame, skipValidation, marginColor, alignmentColor, timingColor, optimizeSvg,
       };
       // Remove undefined keys so preset values are preserved
       for (const key of Object.keys(explicitOpts)) {
@@ -103,15 +124,15 @@ export const QRCode = forwardRef<QRCodeHandle, QRCodeProps>(
         moduleTypes: qr.moduleTypes,
       } as RenderOptions;
 
-      return renderSVG(qr.matrix, renderOpts);
-    }, [value, size, errorCorrection, version, fgColor, bgColor, bgOpacity, borderRadius, shape, moduleScale, customModule, margin, logo, overlayImage, finderShape, finderColor, finderOuterColor, finderInnerColor, finderOuterShape, finderInnerShape, frame, preset, skipValidation]);
+      return renderSVG(matrix, renderOpts);
+    }, [value, size, errorCorrection, version, fgColor, bgColor, bgOpacity, borderRadius, shape, moduleScale, customModule, margin, logo, overlayImage, halftone, finderShape, finderColor, finderOuterColor, finderInnerColor, finderOuterShape, finderInnerShape, frame, preset, skipValidation, marginColor, alignmentColor, timingColor, optimizeSvg]);
 
     useImperativeHandle(ref, () => {
       const buildOpts = () => {
         const presetOpts = preset ? applyPreset(preset) : {};
         const explicit: Record<string, unknown> = {
           size, fgColor, bgColor, bgOpacity, borderRadius, shape, moduleScale,
-          customModule, margin, logo, overlayImage, finderShape, finderColor,
+          customModule, margin, logo, overlayImage, halftone, finderShape, finderColor,
           finderOuterColor, finderInnerColor, finderOuterShape, finderInnerShape,
           frame, skipValidation,
         };
@@ -123,23 +144,23 @@ export const QRCode = forwardRef<QRCodeHandle, QRCodeProps>(
       return {
       download(filename?: string) {
         const result = createQR(value, buildOpts(),
-          { errorCorrection: (logo || overlayImage) ? 'H' : (errorCorrection ?? 'M'), version });
+          { errorCorrection: (logo || overlayImage || halftone) ? 'H' : (errorCorrection ?? 'M'), version });
         result.download({ filename });
       },
       toBlob() {
         const result = createQR(value, buildOpts(),
-          { errorCorrection: (logo || overlayImage) ? 'H' : (errorCorrection ?? 'M'), version });
+          { errorCorrection: (logo || overlayImage || halftone) ? 'H' : (errorCorrection ?? 'M'), version });
         return result.toBlob('svg');
       },
       toDataURL() {
         const result = createQR(value, buildOpts(),
-          { errorCorrection: (logo || overlayImage) ? 'H' : (errorCorrection ?? 'M'), version });
+          { errorCorrection: (logo || overlayImage || halftone) ? 'H' : (errorCorrection ?? 'M'), version });
         return result.toDataURL('svg');
       },
       get element() {
         return divRef.current;
       },
-    }; }, [value, size, errorCorrection, version, fgColor, bgColor, bgOpacity, borderRadius, shape, moduleScale, customModule, margin, logo, overlayImage, finderShape, finderColor, finderOuterColor, finderInnerColor, finderOuterShape, finderInnerShape, frame, preset, skipValidation]);
+    }; }, [value, size, errorCorrection, version, fgColor, bgColor, bgOpacity, borderRadius, shape, moduleScale, customModule, margin, logo, overlayImage, halftone, finderShape, finderColor, finderOuterColor, finderInnerColor, finderOuterShape, finderInnerShape, frame, preset, skipValidation, marginColor, alignmentColor, timingColor, optimizeSvg]);
 
     const ariaLabel = alt !== undefined ? alt : 'QR Code';
 

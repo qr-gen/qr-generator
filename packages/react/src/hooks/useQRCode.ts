@@ -8,6 +8,8 @@ export interface UseQRCodeOptions {
   version?: number;
   /** When true, auto-upgrades error correction to 'H' for logo resilience. */
   hasLogo?: boolean;
+  /** When true, auto-upgrades error correction to 'H' for halftone. */
+  hasHalftone?: boolean;
 }
 
 export interface UseQRCodeResult {
@@ -19,9 +21,9 @@ export interface UseQRCodeResult {
 }
 
 export function useQRCode(options: UseQRCodeOptions): UseQRCodeResult {
-  const { value, errorCorrection, version, hasLogo } = options;
+  const { value, errorCorrection, version, hasLogo, hasHalftone } = options;
 
-  const ecLevel: ErrorCorrectionLevel = hasLogo
+  const ecLevel: ErrorCorrectionLevel = (hasLogo || hasHalftone)
     ? 'H'
     : errorCorrection ?? 'M';
 

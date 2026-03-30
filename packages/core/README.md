@@ -2,7 +2,7 @@
 
 Zero-dependency QR code generation engine. ISO/IEC 18004 compliant with encoding, Reed-Solomon error correction, and matrix construction.
 
-**7.7 KB gzipped. Zero dependencies.**
+**8.7 KB gzipped. Zero dependencies.**
 
 ## Install
 
@@ -155,6 +155,21 @@ MODULE_TYPE.VERSION_INFO  // 5 - version information
 MODULE_TYPE.DARK_MODULE   // 6 - fixed dark module
 MODULE_TYPE.SEPARATOR     // 7 - finder separators
 MODULE_TYPE.FINDER_INNER  // 8 - inner finder dot
+```
+
+### Flexible Modules
+
+Identify which modules can be safely toggled (used by the halftone engine):
+
+```ts
+import { getFlexibleModules } from '@qr-kit/core';
+import type { ExcludeRegion } from '@qr-kit/core';
+
+const flexible = getFlexibleModules(qr.moduleTypes);
+
+// Optionally exclude a region (e.g. logo area)
+const logoRegion: ExcludeRegion = { row: 10, col: 10, width: 5, height: 5 };
+const flexibleWithExclusion = getFlexibleModules(qr.moduleTypes, logoRegion);
 ```
 
 ## Error Handling

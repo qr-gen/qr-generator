@@ -6,6 +6,7 @@ import { getGradientColor } from './gradient.js';
 import { computeLogoBounds, isModuleInLogoBounds } from '../svg/logo.js';
 import { validateRenderOptions } from '../validation/validate.js';
 import { computeFrameLayout } from '../svg/frame.js';
+import { calculatePixelDimensions } from '../utils/dpi.js';
 
 /**
  * Rasterize a QR matrix into a PixelBuffer.
@@ -51,38 +52,66 @@ export function rasterizeMatrix(
   const qrOffsetX = frameLayout ? frameLayout.qrX : 0;
   const qrOffsetY = frameLayout ? frameLayout.qrY : 0;
 
-  const totalModules = matrixSize + margin * 2;
-  const moduleSize = effectiveQRSize / totalModules;
+  // Calculate actual pixel dimensions based on DPI / physical size
+  const { width: actualWidth, height: actualHeight } = calculatePixelDimensions(
+    size, { dpi: options.dpi, physicalSize: options.physicalSize },
+  );
+  const dpiScale = actualWidth / size;
 
-  const buffer = new PixelBuffer(size, size);
+  const totalModules = matrixSize + margin * 2;
+  const moduleSize = (effectiveQRSize * dpiScale) / totalModules;
+
+  const buffer = new PixelBuffer(actualWidth, actualHeight);
   const isTransparentBg = bgColor === 'transparent';
+  const marginColor = options.marginColor;
 
   // Fill background
   let bgR = 255, bgG = 255, bgB = 255;
   const bgAlpha = Math.round((options.bgOpacity ?? 1) * 255);
-  if (!isTransparentBg) {
+
+  const hasDistinctMarginColor = marginColor && marginColor !== bgColor;
+
+  // Scale frame offsets by DPI
+  const scaledQrOffsetX = qrOffsetX * dpiScale;
+  const scaledQrOffsetY = qrOffsetY * dpiScale;
+
+  if (hasDistinctMarginColor) {
+    // Fill entire canvas with marginColor (always fully opaque)
+    const [mR, mG, mB] = parseHexColor(marginColor);
+    buffer.fillRect(0, 0, actualWidth, actualHeight, mR, mG, mB, 255);
+    // Fill inner module area with bgColor
+    if (!isTransparentBg) {
+      [bgR, bgG, bgB] = parseHexColor(bgColor);
+      const innerX = Math.floor(scaledQrOffsetX + margin * moduleSize);
+      const innerY = Math.floor(scaledQrOffsetY + margin * moduleSize);
+      const innerW = Math.ceil(matrixSize * moduleSize);
+      const innerH = Math.ceil(matrixSize * moduleSize);
+      buffer.fillRect(innerX, innerY, innerW, innerH, bgR, bgG, bgB, bgAlpha);
+    }
+  } else if (!isTransparentBg) {
     [bgR, bgG, bgB] = parseHexColor(bgColor);
     // Fill entire canvas, then frame border will draw on top
-    buffer.fillRect(0, 0, size, size, bgR, bgG, bgB, bgAlpha);
+    buffer.fillRect(0, 0, actualWidth, actualHeight, bgR, bgG, bgB, bgAlpha);
   }
 
   // Draw frame border in raster (label omitted in raster mode)
   if (frame) {
-    const thickness = frame.thickness ?? Math.round(size / 30);
+    const thickness = Math.round((frame.thickness ?? Math.round(size / 30)) * dpiScale);
     const [frameR, frameG, frameB] = frame.color ? parseHexColor(frame.color) : parseHexColor(fgColorStr);
     // Top border
-    buffer.fillRect(0, 0, size, thickness, frameR, frameG, frameB, 255);
+    buffer.fillRect(0, 0, actualWidth, thickness, frameR, frameG, frameB, 255);
     // Bottom border
-    buffer.fillRect(0, size - thickness, size, thickness, frameR, frameG, frameB, 255);
+    buffer.fillRect(0, actualHeight - thickness, actualWidth, thickness, frameR, frameG, frameB, 255);
     // Left border
-    buffer.fillRect(0, 0, thickness, size, frameR, frameG, frameB, 255);
+    buffer.fillRect(0, 0, thickness, actualHeight, frameR, frameG, frameB, 255);
     // Right border
-    buffer.fillRect(size - thickness, 0, thickness, size, frameR, frameG, frameB, 255);
+    buffer.fillRect(actualWidth - thickness, 0, thickness, actualHeight, frameR, frameG, frameB, 255);
   }
 
-  // Compute logo bounds if logo is present
+  // Compute logo bounds if logo is present (using scaled dimensions)
+  const scaledEffectiveQRSize = effectiveQRSize * dpiScale;
   const logoBounds = logo
-    ? computeLogoBounds(logo, effectiveQRSize, logo.padding ?? moduleSize * 2)
+    ? computeLogoBounds(logo, scaledEffectiveQRSize, logo.padding ?? moduleSize * 2)
     : null;
 
   // Determine if fgColor is a gradient
@@ -113,6 +142,20 @@ export function rasterizeMatrix(
     [finderInnerR, finderInnerG, finderInnerB] = parseHexColor(resolvedFinderInnerColor);
   }
 
+  // Resolve alignment color
+  const isAlignmentGradient = options.alignmentColor && typeof options.alignmentColor !== 'string';
+  let alignR = fgR, alignG = fgG, alignB = fgB;
+  if (options.alignmentColor && typeof options.alignmentColor === 'string' && moduleTypes) {
+    [alignR, alignG, alignB] = parseHexColor(options.alignmentColor);
+  }
+
+  // Resolve timing color
+  const isTimingGradient = options.timingColor && typeof options.timingColor !== 'string';
+  let timingR = fgR, timingG = fgG, timingB = fgB;
+  if (options.timingColor && typeof options.timingColor === 'string' && moduleTypes) {
+    [timingR, timingG, timingB] = parseHexColor(options.timingColor);
+  }
+
   // Resolve finder outer/inner shapes
   const finderOuterShapeResolved = options.finderOuterShape ?? finderShape;
   const finderInnerShapeResolved = options.finderInnerShape ?? finderShape;
@@ -127,8 +170,8 @@ export function rasterizeMatrix(
     ];
 
     for (const { row, col } of finderCenters) {
-      const cx = qrOffsetX + (col + margin) * moduleSize + moduleSize / 2;
-      const cy = qrOffsetY + (row + margin) * moduleSize + moduleSize / 2;
+      const cx = scaledQrOffsetX + (col + margin) * moduleSize + moduleSize / 2;
+      const cy = scaledQrOffsetY + (row + margin) * moduleSize + moduleSize / 2;
       const gapR = isTransparentBg ? 255 : bgR;
       const gapG = isTransparentBg ? 255 : bgG;
       const gapB = isTransparentBg ? 255 : bgB;
@@ -146,8 +189,8 @@ export function rasterizeMatrix(
     for (let col = 0; col < matrixSize; col++) {
       if (matrix[row][col] !== 1) continue;
 
-      const x = qrOffsetX + (col + margin) * moduleSize;
-      const y = qrOffsetY + (row + margin) * moduleSize;
+      const x = scaledQrOffsetX + (col + margin) * moduleSize;
+      const y = scaledQrOffsetY + (row + margin) * moduleSize;
 
       // Skip modules in logo clear zone
       if (logoBounds && isModuleInLogoBounds(x, y, moduleSize, logoBounds)) {
@@ -183,17 +226,20 @@ export function rasterizeMatrix(
         }
       }
 
+      // Determine the module type for color resolution
+      const moduleTypeVal = moduleTypes ? moduleTypes[row][col] : 0;
+
       if (isFinder && moduleTypes) {
         if (isFinderInnerModule) {
           // Inner finder module
           if (resolvedFinderInnerColor) {
             if (isFinderInnerGradient) {
-              renderGradientModule(buffer, offsetX, offsetY, adjustedSize, moduleShape, size, size, resolvedFinderInnerColor as GradientConfig);
+              renderGradientModule(buffer, offsetX, offsetY, adjustedSize, moduleShape, actualWidth, actualHeight, resolvedFinderInnerColor as GradientConfig);
             } else {
               renderRasterModule(buffer, offsetX, offsetY, adjustedSize, moduleShape, finderInnerR, finderInnerG, finderInnerB, 255);
             }
           } else if (isGradient) {
-            renderGradientModule(buffer, offsetX, offsetY, adjustedSize, moduleShape, size, size, fgColor as GradientConfig);
+            renderGradientModule(buffer, offsetX, offsetY, adjustedSize, moduleShape, actualWidth, actualHeight, fgColor as GradientConfig);
           } else {
             renderRasterModule(buffer, offsetX, offsetY, adjustedSize, moduleShape, fgR, fgG, fgB, 255);
           }
@@ -201,19 +247,33 @@ export function rasterizeMatrix(
           // Outer finder module
           if (resolvedFinderOuterColor) {
             if (isFinderOuterGradient) {
-              renderGradientModule(buffer, offsetX, offsetY, adjustedSize, moduleShape, size, size, resolvedFinderOuterColor as GradientConfig);
+              renderGradientModule(buffer, offsetX, offsetY, adjustedSize, moduleShape, actualWidth, actualHeight, resolvedFinderOuterColor as GradientConfig);
             } else {
               renderRasterModule(buffer, offsetX, offsetY, adjustedSize, moduleShape, finderOuterR, finderOuterG, finderOuterB, 255);
             }
           } else if (isGradient) {
-            renderGradientModule(buffer, offsetX, offsetY, adjustedSize, moduleShape, size, size, fgColor as GradientConfig);
+            renderGradientModule(buffer, offsetX, offsetY, adjustedSize, moduleShape, actualWidth, actualHeight, fgColor as GradientConfig);
           } else {
             renderRasterModule(buffer, offsetX, offsetY, adjustedSize, moduleShape, fgR, fgG, fgB, 255);
           }
         }
+      } else if (moduleTypeVal === 3 && options.alignmentColor && moduleTypes) {
+        // ALIGNMENT module with custom color
+        if (isAlignmentGradient) {
+          renderGradientModule(buffer, offsetX, offsetY, adjustedSize, moduleShape, actualWidth, actualHeight, options.alignmentColor as GradientConfig);
+        } else {
+          renderRasterModule(buffer, offsetX, offsetY, adjustedSize, moduleShape, alignR, alignG, alignB, 255);
+        }
+      } else if (moduleTypeVal === 2 && options.timingColor && moduleTypes) {
+        // TIMING module with custom color
+        if (isTimingGradient) {
+          renderGradientModule(buffer, offsetX, offsetY, adjustedSize, moduleShape, actualWidth, actualHeight, options.timingColor as GradientConfig);
+        } else {
+          renderRasterModule(buffer, offsetX, offsetY, adjustedSize, moduleShape, timingR, timingG, timingB, 255);
+        }
       } else if (isGradient) {
         const gradientConfig = fgColor as GradientConfig;
-        renderGradientModule(buffer, offsetX, offsetY, adjustedSize, moduleShape, size, size, gradientConfig);
+        renderGradientModule(buffer, offsetX, offsetY, adjustedSize, moduleShape, actualWidth, actualHeight, gradientConfig);
       } else {
         renderRasterModule(buffer, offsetX, offsetY, adjustedSize, moduleShape, fgR, fgG, fgB, 255);
       }

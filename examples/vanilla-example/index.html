@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QR Kit — Vanilla JS Example</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: #f5f5f5; color: #333; }
+    .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
+    h1 { border-bottom: 2px solid #eee; padding-bottom: 12px; margin-bottom: 8px; }
+    .subtitle { color: #666; margin-bottom: 24px; }
+    nav { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 24px; }
+    nav button {
+      padding: 8px 16px; border: 1px solid #ccc; border-radius: 8px;
+      background: #fff; cursor: pointer; font-size: 14px; transition: all 0.15s;
+    }
+    nav button.active { background: #333; color: #fff; border-color: #333; font-weight: 600; }
+    nav button:hover:not(.active) { background: #f0f0f0; }
+    .grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 24px;
+    }
+    .card {
+      background: #fff; border: 1px solid #e0e0e0; border-radius: 12px;
+      padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+    .card h3 { font-size: 15px; color: #333; margin-bottom: 12px; }
+    .card .note { font-size: 12px; color: #888; margin-top: 8px; }
+    .qr-container { display: flex; justify-content: center; }
+    .section { display: none; }
+    .section.active { display: block; }
+    .overlay-bg { background: repeating-conic-gradient(#ddd 0% 25%, #fff 0% 50%) 50%/20px 20px; padding: 10px; border-radius: 8px; }
+    .dark-bg { background: #1a1a2e; padding: 10px; border-radius: 8px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>QR Kit — Vanilla JS Example</h1>
+    <p class="subtitle">All features using @qr-kit/core + @qr-kit/dom directly (no React).</p>
+
+    <nav id="nav"></nav>
+    <div id="content"></div>
+  </div>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

@@ -1,6 +1,6 @@
 {
   "name": "@qr-kit/core",
-  "version": "1.0.1",
+  "version": "1.2.1",
   "description": "Zero-dependency QR code generation engine with ISO/IEC 18004 compliance — encoding, Reed-Solomon error correction, and matrix construction",
   "type": "module",
   "main": "dist/index.cjs",
